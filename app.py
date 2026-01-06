@@ -1844,7 +1844,7 @@ def load_and_process_data(sales_file, inventory_file, promotions_file):
 
 
 # =============================================================================
-# SAMPLE DATA GENERATOR (COMPREHENSIVE)
+# SAMPLE DATA GENERATOR (COMPREHENSIVE) - FIXED
 # =============================================================================
 
 def generate_sample_data():
@@ -1904,8 +1904,11 @@ def generate_sample_data():
     # SALES DATA
     # ==========================================================================
     
-    # Create seasonal patterns
+    # Create seasonal patterns - FIXED: accepts pandas Timestamp
     def get_seasonal_factor(date):
+        # Convert to pandas Timestamp if needed
+        if isinstance(date, np.datetime64):
+            date = pd.Timestamp(date)
         month = date.month
         # Ramadan/Eid boost (varies by year, simplified)
         if month in [3, 4]:  # Approximate Ramadan period
@@ -1936,10 +1939,16 @@ def generate_sample_data():
     
     payment_methods = ['Cash', 'Credit Card', 'Debit Card', 'Mobile Payment', 'Online']
     
+    # Pre-convert dates to list of Timestamps for faster random selection
+    dates_list = dates.tolist()
+    
     for i in range(1, n_sales + 1):
         sku = np.random.choice(skus)
         store = np.random.choice(stores)
-        date = np.random.choice(dates)
+        # Use random index to select date
+        date_idx = np.random.randint(0, len(dates_list))
+        date = dates_list[date_idx]
+        
         seasonal = get_seasonal_factor(date)
         
         # Weekday effect
@@ -1992,6 +2001,9 @@ def generate_sample_data():
     
     warehouses = ['WH-Dubai-1', 'WH-Dubai-2', 'WH-AbuDhabi', 'WH-Sharjah', 'WH-Central']
     
+    # Get last 30 dates for inventory updates
+    recent_dates = dates_list[-30:]
+    
     record_id = 1
     for sku in skus:
         for store in stores:
@@ -2011,7 +2023,7 @@ def generate_sample_data():
             inventory_data['stock_level'].append(stock)
             inventory_data['reorder_point'].append(reorder_pt)
             inventory_data['reorder_quantity'].append(reorder_qty)
-            inventory_data['last_updated'].append(np.random.choice(dates[-30:]))
+            inventory_data['last_updated'].append(recent_dates[np.random.randint(0, len(recent_dates))])
             inventory_data['warehouse_location'].append(np.random.choice(warehouses))
             inventory_data['supplier_id'].append(f'SUP_{str(np.random.randint(1, 50)).zfill(3)}')
             record_id += 1
@@ -2058,6 +2070,9 @@ def generate_sample_data():
     promo_names = ['Summer Sale', 'Ramadan Special', 'Eid Offer', 'Back to School', 'Weekend Deal', 
                   'Flash Friday', 'Member Exclusive', 'Clearance Event', 'New Arrival Promo', 'Bundle Bonanza']
     
+    # Use dates excluding last 30 days for promotion start dates
+    promo_start_dates = dates_list[:-30]
+    
     for i in range(1, n_promos + 1):
         sku = np.random.choice(skus)
         store = np.random.choice(stores + ['ALL'])  # Some promos are store-wide
@@ -2073,7 +2088,8 @@ def generate_sample_data():
         else:
             discount = np.random.choice([5, 10, 15, 20, 25, 30])
         
-        start = np.random.choice(dates[:-30])
+        start_idx = np.random.randint(0, len(promo_start_dates))
+        start = promo_start_dates[start_idx]
         duration = np.random.randint(3, 21)
         end = start + timedelta(days=duration)
         
@@ -4464,3 +4480,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
