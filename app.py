@@ -4331,11 +4331,12 @@ def render_sidebar():
             "Select data source:",
             ["📊 Sample Data (Demo)", "📁 Upload Your Files"],
             label_visibility="collapsed",
-            key="data_source_radio"
+            key="sidebar_data_source_selector"
         )
         
+        st.markdown("---")
+        
         if data_source == "📁 Upload Your Files":
-            st.markdown("---")
             st.markdown("### 📤 Upload Data Files")
             st.caption("Upload CSV files with the required columns")
             
@@ -4343,28 +4344,28 @@ def render_sidebar():
             sales_file = st.file_uploader(
                 "📈 Sales Data",
                 type=['csv'],
-                key='sales_upload',
+                key='sidebar_sales_upload',
                 help="Required: transaction_id, sku_id, store_id, quantity_sold, unit_price, transaction_date"
             )
             
             inventory_file = st.file_uploader(
                 "📦 Inventory Data",
                 type=['csv'],
-                key='inventory_upload',
+                key='sidebar_inventory_upload',
                 help="Required: record_id, sku_id, store_id, stock_level, reorder_point, reorder_quantity"
             )
             
             promotions_file = st.file_uploader(
                 "🎯 Promotions Data",
                 type=['csv'],
-                key='promotions_upload',
+                key='sidebar_promotions_upload',
                 help="Required: promotion_id, sku_id, store_id, promotion_type, discount_percentage, start_date, end_date"
             )
             
             products_file = st.file_uploader(
                 "🏷️ Products/SKU Data",
                 type=['csv'],
-                key='products_upload',
+                key='sidebar_products_upload',
                 help="Required: sku_id, product_name, category, brand, unit_cost"
             )
             
@@ -4377,6 +4378,9 @@ def render_sidebar():
                 
                 if error:
                     st.error(f"❌ Error: {error}")
+                    # Footer
+                    st.markdown("---")
+                    st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
                     return None, None, None, None
                 
                 st.success("✅ All files loaded successfully!")
@@ -4388,6 +4392,10 @@ def render_sidebar():
                     st.markdown(f"**Promotions:** {len(promotions_df):,} records")
                     if products_df is not None:
                         st.markdown(f"**Products:** {len(products_df):,} records")
+                
+                # Footer
+                st.markdown("---")
+                st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
                 
                 return sales_df, inventory_df, promotions_df, products_df
             
@@ -4407,11 +4415,14 @@ def render_sidebar():
                     st.markdown("**Products Data (Optional):**")
                     st.code("sku_id, product_name, category, brand, unit_cost, supplier_id")
                 
+                # Footer
+                st.markdown("---")
+                st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
+                
                 return None, None, None, None
         
         else:
             # Use sample data
-            st.markdown("---")
             st.markdown("### ℹ️ Sample Data")
             st.caption("Using demonstration dataset with synthetic UAE retail data")
             
@@ -4429,12 +4440,11 @@ def render_sidebar():
                 st.markdown(f"**Categories:** {sales_df['category'].nunique()}")
                 st.markdown(f"**Regions:** {sales_df['region'].nunique()}")
             
+            # Footer
+            st.markdown("---")
+            st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
+            
             return sales_df, inventory_df, promotions_df, products_df
-        
-        # Footer info
-        st.markdown("---")
-        st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
-
 # =============================================================================
 # MAIN APPLICATION
 # =============================================================================
@@ -5266,5 +5276,6 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
 
 if __name__ == "__main__":
     main()
+
 
 
