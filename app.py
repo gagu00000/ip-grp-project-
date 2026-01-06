@@ -4574,18 +4574,18 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         selected_dataset = st.selectbox(
             "📊 Dataset",
             available_datasets,
-            key="cleaning_dataset"
+            key="dc_dataset_selector"
         )
     
     with col2:
         cleaning_action = st.selectbox(
             "🔧 Analysis Type",
             ["Data Overview", "Missing Values", "Duplicates", "Outliers", "Data Types", "Value Distribution", "Auto Clean"],
-            key="cleaning_action"
+            key="dc_analysis_type"
         )
     
     with col3:
-        export_cleaned = st.checkbox("📥 Enable Export", key="export_cleaned")
+        export_cleaned = st.checkbox("📥 Enable Export", key="dc_export_checkbox")
     
     st.markdown("")
     
@@ -4599,13 +4599,16 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
     elif selected_dataset == "Promotions Data":
         df = promotions_df.copy()
         df_name = "promotions"
-    else:
-        df = products_df.copy() if products_df is not None else pd.DataFrame()
+    elif products_df is not None:
+        df = products_df.copy()
         df_name = "products"
+    else:
+        df = sales_df.copy()
+        df_name = "sales"
     
     if df.empty:
         render_empty_state("📊", "No Data Available", "The selected dataset is empty.")
-        return df, None, None, None
+        return
     
     # =========================================================================
     # DATA QUALITY SCORE
@@ -4619,7 +4622,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
     uniqueness = ((len(df) - duplicate_rows) / len(df) * 100) if len(df) > 0 else 0
     
     # Overall quality score
-    quality_score = (completeness * 0.5 + uniqueness * 0.3 + 20)  # Base 20 for validity
+    quality_score = (completeness * 0.5 + uniqueness * 0.3 + 20)
     quality_score = min(100, quality_score)
     
     # Quality KPIs
@@ -4635,7 +4638,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
     
     render_divider_subtle()
     
-    # Store cleaned dataframe
+    # Store for cleaning operations
     cleaned_df = df.copy()
     cleaning_log = []
     
@@ -4662,10 +4665,11 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             st.dataframe(col_info, use_container_width=True, hide_index=True, height=400)
         
         with col2:
-            st.markdown("##### Data Sample")
+            st.markdown("##### Data Sample (First 10 Rows)")
             st.dataframe(df.head(10), use_container_width=True, height=400)
         
         # Column type distribution
+        st.markdown("")
         render_chart_title("Data Type Distribution", "📊")
         
         type_counts = df.dtypes.astype(str).value_counts().reset_index()
@@ -4685,14 +4689,16 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             total_memory = memory_usage.sum()
             
             st.markdown("##### Memory Usage")
-            st.markdown(f'<div class="status-card"><div class="status-label">Total Memory</div><div class="status-value primary">{total_memory / 1024 / 1024:.2f} MB</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; padding: 16px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.85rem;">Total Memory</div><div style="color: #6366f1; font-size: 1.5rem; font-weight: 700;">{total_memory / 1024 / 1024:.2f} MB</div></div>', unsafe_allow_html=True)
             
             st.markdown("")
-            st.markdown("##### Quick Stats")
+            st.markdown("##### Quick Stats for Numeric Columns")
             
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 0:
                 st.dataframe(df[numeric_cols].describe().round(2), use_container_width=True)
+            else:
+                st.info("No numeric columns in this dataset.")
     
     # =========================================================================
     # MISSING VALUES ANALYSIS
@@ -4713,28 +4719,36 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         
         with col1:
             # Bar chart of missing values
-            fig = px.bar(missing_df[missing_df['Missing'] > 0], 
-                        x='Column', y='Missing',
-                        color='Missing %',
-                        color_continuous_scale=['#10b981', '#f59e0b', '#ef4444'])
-            fig = apply_chart_style(fig, height=350, show_legend=False)
-            fig.update_layout(xaxis_title="", yaxis_title="Missing Count")
-            st.plotly_chart(fig, use_container_width=True)
+            missing_with_values = missing_df[missing_df['Missing'] > 0]
+            if len(missing_with_values) > 0:
+                fig = px.bar(missing_with_values, 
+                            x='Column', y='Missing',
+                            color='Missing %',
+                            color_continuous_scale=['#10b981', '#f59e0b', '#ef4444'])
+                fig = apply_chart_style(fig, height=350, show_legend=False)
+                fig.update_layout(xaxis_title="", yaxis_title="Missing Count", coloraxis_showscale=False)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                render_insight_box("✅", "No Missing Values", "All columns have complete data!", "success")
         
         with col2:
             # Missing pattern heatmap (sample)
             sample_size = min(100, len(df))
-            sample_df = df.sample(sample_size) if len(df) > sample_size else df
+            sample_df = df.sample(sample_size, random_state=42) if len(df) > sample_size else df
             
             missing_matrix = sample_df.isnull().astype(int)
             
-            fig2 = px.imshow(missing_matrix.T, 
-                           labels=dict(x="Row", y="Column", color="Missing"),
-                           color_continuous_scale=['#1a1a2e', '#ef4444'],
-                           aspect='auto')
-            fig2 = apply_chart_style(fig2, height=350)
-            fig2.update_layout(title="Missing Pattern (Sample)")
-            st.plotly_chart(fig2, use_container_width=True)
+            if missing_matrix.sum().sum() > 0:
+                fig2 = px.imshow(missing_matrix.T, 
+                               labels=dict(x="Row", y="Column", color="Missing"),
+                               color_continuous_scale=['#1a1a2e', '#ef4444'],
+                               aspect='auto')
+                fig2 = apply_chart_style(fig2, height=350)
+                fig2.update_layout(coloraxis_showscale=False)
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.markdown("")
+                render_insight_box("📊", "Missing Pattern", "No missing values to display in heatmap.", "primary")
         
         # Missing values table
         st.markdown("##### Missing Values by Column")
@@ -4754,55 +4768,62 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                 target_col = st.selectbox(
                     "Select Column",
                     cols_with_missing,
-                    key="missing_target_col"
+                    key="dc_missing_target_col"
                 )
             
             with col2:
                 fill_method = st.selectbox(
                     "Fill Method",
                     ["Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode", "Fill with Zero", "Fill with Custom", "Forward Fill", "Backward Fill"],
-                    key="fill_method"
+                    key="dc_fill_method"
                 )
             
             with col3:
+                custom_value = ""
                 if fill_method == "Fill with Custom":
-                    custom_value = st.text_input("Custom Value", key="custom_fill_value")
-                else:
-                    custom_value = None
+                    custom_value = st.text_input("Custom Value", key="dc_custom_fill_value")
             
-            if st.button("🔄 Apply Fix", key="apply_missing_fix"):
+            if st.button("🔄 Apply Fix", key="dc_apply_missing_fix"):
+                original_missing = cleaned_df[target_col].isnull().sum()
+                
                 if fill_method == "Drop Rows":
                     cleaned_df = cleaned_df.dropna(subset=[target_col])
-                    cleaning_log.append(f"Dropped {df[target_col].isnull().sum()} rows with missing {target_col}")
+                    cleaning_log.append(f"Dropped {original_missing} rows with missing {target_col}")
                 elif fill_method == "Fill with Mean":
                     if pd.api.types.is_numeric_dtype(cleaned_df[target_col]):
                         fill_val = cleaned_df[target_col].mean()
                         cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
-                        cleaning_log.append(f"Filled {target_col} missing values with mean: {fill_val:.2f}")
+                        cleaning_log.append(f"Filled {target_col} with mean: {fill_val:.2f}")
+                    else:
+                        st.error("Mean can only be calculated for numeric columns")
                 elif fill_method == "Fill with Median":
                     if pd.api.types.is_numeric_dtype(cleaned_df[target_col]):
                         fill_val = cleaned_df[target_col].median()
                         cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
-                        cleaning_log.append(f"Filled {target_col} missing values with median: {fill_val:.2f}")
+                        cleaning_log.append(f"Filled {target_col} with median: {fill_val:.2f}")
+                    else:
+                        st.error("Median can only be calculated for numeric columns")
                 elif fill_method == "Fill with Mode":
-                    fill_val = cleaned_df[target_col].mode().iloc[0] if len(cleaned_df[target_col].mode()) > 0 else None
-                    if fill_val is not None:
+                    mode_series = cleaned_df[target_col].mode()
+                    if len(mode_series) > 0:
+                        fill_val = mode_series.iloc[0]
                         cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
-                        cleaning_log.append(f"Filled {target_col} missing values with mode: {fill_val}")
+                        cleaning_log.append(f"Filled {target_col} with mode: {fill_val}")
                 elif fill_method == "Fill with Zero":
                     cleaned_df[target_col] = cleaned_df[target_col].fillna(0)
-                    cleaning_log.append(f"Filled {target_col} missing values with 0")
+                    cleaning_log.append(f"Filled {target_col} with 0")
                 elif fill_method == "Fill with Custom" and custom_value:
                     cleaned_df[target_col] = cleaned_df[target_col].fillna(custom_value)
-                    cleaning_log.append(f"Filled {target_col} missing values with: {custom_value}")
+                    cleaning_log.append(f"Filled {target_col} with: {custom_value}")
                 elif fill_method == "Forward Fill":
                     cleaned_df[target_col] = cleaned_df[target_col].ffill()
-                    cleaning_log.append(f"Forward filled {target_col} missing values")
+                    cleaning_log.append(f"Forward filled {target_col}")
                 elif fill_method == "Backward Fill":
                     cleaned_df[target_col] = cleaned_df[target_col].bfill()
-                    cleaning_log.append(f"Backward filled {target_col} missing values")
+                    cleaning_log.append(f"Backward filled {target_col}")
                 
-                st.success(f"✅ Applied: {cleaning_log[-1] if cleaning_log else 'Fix applied'}")
+                if cleaning_log:
+                    st.success(f"✅ {cleaning_log[-1]}")
         else:
             render_insight_box("✅", "No Missing Values", "This dataset has no missing values. Great data quality!", "success")
     
@@ -4819,37 +4840,40 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            render_status_card("Total Duplicates", f"{duplicate_count:,}", "danger" if duplicate_count > 0 else "success")
+            color = "#ef4444" if duplicate_count > 0 else "#10b981"
+            st.markdown(f'<div style="background: {color}20; border: 1px solid {color}40; border-radius: 12px; padding: 16px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.85rem;">Total Duplicates</div><div style="color: {color}; font-size: 1.5rem; font-weight: 700;">{duplicate_count:,}</div></div>', unsafe_allow_html=True)
         
         with col2:
-            render_status_card("Unique Rows", f"{len(df) - duplicate_count:,}", "success")
+            st.markdown(f'<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 16px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.85rem;">Unique Rows</div><div style="color: #10b981; font-size: 1.5rem; font-weight: 700;">{len(df) - duplicate_count:,}</div></div>', unsafe_allow_html=True)
         
         with col3:
             dup_pct = (duplicate_count / len(df) * 100) if len(df) > 0 else 0
-            render_status_card("Duplicate %", f"{dup_pct:.2f}%", "warning" if dup_pct > 5 else "success")
+            color = "#f59e0b" if dup_pct > 5 else "#10b981"
+            st.markdown(f'<div style="background: {color}20; border: 1px solid {color}40; border-radius: 12px; padding: 16px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.85rem;">Duplicate %</div><div style="color: {color}; font-size: 1.5rem; font-weight: 700;">{dup_pct:.2f}%</div></div>', unsafe_allow_html=True)
         
         st.markdown("")
         
         # Subset duplicate check
-        st.markdown("##### Check Duplicates by Columns")
+        st.markdown("##### Check Duplicates by Specific Columns")
         
         col1, col2 = st.columns(2)
         
         with col1:
+            default_cols = df.columns[:3].tolist() if len(df.columns) >= 3 else df.columns.tolist()
             subset_cols = st.multiselect(
                 "Select columns to check",
                 df.columns.tolist(),
-                default=df.columns[:3].tolist() if len(df.columns) >= 3 else df.columns.tolist(),
-                key="dup_subset_cols"
+                default=default_cols,
+                key="dc_dup_subset_cols"
             )
         
         with col2:
             if subset_cols:
                 subset_dups = df.duplicated(subset=subset_cols).sum()
-                st.metric("Duplicates in subset", f"{subset_dups:,}")
+                st.metric("Duplicates in Selected Columns", f"{subset_dups:,}")
         
         if duplicate_count > 0:
-            st.markdown("##### Duplicate Rows Sample")
+            st.markdown("##### Sample Duplicate Rows")
             st.dataframe(duplicate_rows.head(20), use_container_width=True, height=300)
             
             render_divider_subtle()
@@ -4863,18 +4887,18 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                 keep_option = st.selectbox(
                     "Keep which occurrence?",
                     ["First", "Last", "None (Remove All)"],
-                    key="dup_keep"
+                    key="dc_dup_keep"
                 )
             
             with col2:
                 dup_subset = st.multiselect(
-                    "Based on columns (empty = all)",
+                    "Based on columns (empty = all columns)",
                     df.columns.tolist(),
-                    key="dup_remove_subset"
+                    key="dc_dup_remove_subset"
                 )
             
-            if st.button("🗑️ Remove Duplicates", key="remove_dups"):
-                keep_val = keep_option.lower().split()[0] if keep_option != "None (Remove All)" else False
+            if st.button("🗑️ Remove Duplicates", key="dc_remove_dups"):
+                keep_val = 'first' if keep_option == "First" else ('last' if keep_option == "Last" else False)
                 subset_val = dup_subset if dup_subset else None
                 
                 original_len = len(cleaned_df)
@@ -4896,7 +4920,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         
         if not numeric_cols:
             render_empty_state("📊", "No Numeric Columns", "Outlier detection requires numeric columns.")
-            return cleaned_df, cleaning_log, None, None
+            return
         
         col1, col2, col3 = st.columns(3)
         
@@ -4904,27 +4928,31 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             outlier_col = st.selectbox(
                 "Select Column",
                 numeric_cols,
-                key="outlier_col"
+                key="dc_outlier_col"
             )
         
         with col2:
             outlier_method = st.selectbox(
                 "Detection Method",
                 ["IQR (Interquartile Range)", "Z-Score", "Percentile"],
-                key="outlier_method"
+                key="dc_outlier_method"
             )
         
         with col3:
             if outlier_method == "IQR (Interquartile Range)":
-                iqr_multiplier = st.slider("IQR Multiplier", 1.0, 3.0, 1.5, 0.1, key="iqr_mult")
+                iqr_multiplier = st.slider("IQR Multiplier", 1.0, 3.0, 1.5, 0.1, key="dc_iqr_mult")
             elif outlier_method == "Z-Score":
-                z_threshold = st.slider("Z-Score Threshold", 1.0, 4.0, 3.0, 0.1, key="z_thresh")
+                z_threshold = st.slider("Z-Score Threshold", 1.0, 4.0, 3.0, 0.1, key="dc_z_thresh")
             else:
-                lower_pct = st.slider("Lower Percentile", 0, 10, 1, key="lower_pct")
-                upper_pct = st.slider("Upper Percentile", 90, 100, 99, key="upper_pct")
+                lower_pct = st.slider("Lower Percentile", 0, 10, 1, key="dc_lower_pct")
+                upper_pct = st.slider("Upper Percentile", 90, 100, 99, key="dc_upper_pct")
         
         # Calculate outliers
         col_data = df[outlier_col].dropna()
+        
+        if len(col_data) == 0:
+            st.warning("No valid data in selected column.")
+            return
         
         if outlier_method == "IQR (Interquartile Range)":
             Q1 = col_data.quantile(0.25)
@@ -4935,8 +4963,12 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         elif outlier_method == "Z-Score":
             mean = col_data.mean()
             std = col_data.std()
-            lower_bound = mean - z_threshold * std
-            upper_bound = mean + z_threshold * std
+            if std == 0:
+                lower_bound = mean
+                upper_bound = mean
+            else:
+                lower_bound = mean - z_threshold * std
+                upper_bound = mean + z_threshold * std
         else:
             lower_bound = col_data.quantile(lower_pct / 100)
             upper_bound = col_data.quantile(upper_pct / 100)
@@ -4968,16 +5000,19 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         # Outlier stats
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            render_status_card("Outliers Found", f"{outlier_count:,}", "danger" if outlier_count > 0 else "success")
+            color = "#ef4444" if outlier_count > 0 else "#10b981"
+            st.markdown(f'<div style="background: {color}20; border: 1px solid {color}40; border-radius: 8px; padding: 12px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.75rem;">Outliers Found</div><div style="color: {color}; font-size: 1.2rem; font-weight: 700;">{outlier_count:,}</div></div>', unsafe_allow_html=True)
         with col2:
-            render_status_card("Outlier %", f"{(outlier_count/len(df)*100):.2f}%", "warning" if outlier_count > 0 else "success")
+            outlier_pct = (outlier_count / len(df) * 100) if len(df) > 0 else 0
+            st.markdown(f'<div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 12px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.75rem;">Outlier %</div><div style="color: #f59e0b; font-size: 1.2rem; font-weight: 700;">{outlier_pct:.2f}%</div></div>', unsafe_allow_html=True)
         with col3:
-            render_status_card("Lower Bound", f"{lower_bound:.2f}", "primary")
+            st.markdown(f'<div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.75rem;">Lower Bound</div><div style="color: #6366f1; font-size: 1.2rem; font-weight: 700;">{lower_bound:.2f}</div></div>', unsafe_allow_html=True)
         with col4:
-            render_status_card("Upper Bound", f"{upper_bound:.2f}", "primary")
+            st.markdown(f'<div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px; text-align: center;"><div style="color: #a1a1aa; font-size: 0.75rem;">Upper Bound</div><div style="color: #6366f1; font-size: 1.2rem; font-weight: 700;">{upper_bound:.2f}</div></div>', unsafe_allow_html=True)
         
         if outlier_count > 0:
-            st.markdown("##### Outlier Rows")
+            st.markdown("")
+            st.markdown("##### Outlier Rows Sample")
             st.dataframe(outliers.head(20), use_container_width=True, height=250)
             
             render_divider_subtle()
@@ -4985,16 +5020,13 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             # Handle outliers
             st.markdown("### 🔧 Handle Outliers")
             
-            col1, col2 = st.columns(2)
+            outlier_action = st.selectbox(
+                "Select Action",
+                ["Remove Outliers", "Cap/Clip Values", "Replace with Mean", "Replace with Median"],
+                key="dc_outlier_action"
+            )
             
-            with col1:
-                outlier_action = st.selectbox(
-                    "Action",
-                    ["Remove Outliers", "Cap/Clip Values", "Replace with Mean", "Replace with Median"],
-                    key="outlier_action"
-                )
-            
-            if st.button("🔄 Apply Outlier Fix", key="apply_outlier_fix"):
+            if st.button("🔄 Apply Outlier Fix", key="dc_apply_outlier_fix"):
                 if outlier_action == "Remove Outliers":
                     original_len = len(cleaned_df)
                     cleaned_df = cleaned_df[(cleaned_df[outlier_col] >= lower_bound) & (cleaned_df[outlier_col] <= upper_bound)]
@@ -5002,17 +5034,21 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     cleaning_log.append(f"Removed {removed} outlier rows from {outlier_col}")
                 elif outlier_action == "Cap/Clip Values":
                     cleaned_df[outlier_col] = cleaned_df[outlier_col].clip(lower_bound, upper_bound)
-                    cleaning_log.append(f"Capped {outlier_col} values to [{lower_bound:.2f}, {upper_bound:.2f}]")
+                    cleaning_log.append(f"Capped {outlier_col} to [{lower_bound:.2f}, {upper_bound:.2f}]")
                 elif outlier_action == "Replace with Mean":
                     mean_val = cleaned_df[outlier_col].mean()
-                    cleaned_df.loc[(cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound), outlier_col] = mean_val
-                    cleaning_log.append(f"Replaced {outlier_col} outliers with mean: {mean_val:.2f}")
+                    mask = (cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound)
+                    cleaned_df.loc[mask, outlier_col] = mean_val
+                    cleaning_log.append(f"Replaced outliers in {outlier_col} with mean: {mean_val:.2f}")
                 elif outlier_action == "Replace with Median":
                     median_val = cleaned_df[outlier_col].median()
-                    cleaned_df.loc[(cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound), outlier_col] = median_val
-                    cleaning_log.append(f"Replaced {outlier_col} outliers with median: {median_val:.2f}")
+                    mask = (cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound)
+                    cleaned_df.loc[mask, outlier_col] = median_val
+                    cleaning_log.append(f"Replaced outliers in {outlier_col} with median: {median_val:.2f}")
                 
-                st.success(f"✅ Applied: {cleaning_log[-1]}")
+                st.success(f"✅ {cleaning_log[-1]}")
+        else:
+            render_insight_box("✅", "No Outliers Detected", f"No outliers found in {outlier_col} using {outlier_method}.", "success")
     
     # =========================================================================
     # DATA TYPES ANALYSIS
@@ -5042,40 +5078,46 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             convert_col = st.selectbox(
                 "Select Column",
                 df.columns.tolist(),
-                key="convert_col"
+                key="dc_convert_col"
             )
         
         with col2:
             target_type = st.selectbox(
                 "Convert To",
                 ["string", "integer", "float", "datetime", "category", "boolean"],
-                key="target_type"
+                key="dc_target_type"
             )
         
         with col3:
+            date_format = ""
             if target_type == "datetime":
-                date_format = st.text_input("Date Format (optional)", placeholder="%Y-%m-%d", key="date_format")
+                date_format = st.text_input("Date Format (optional)", placeholder="%Y-%m-%d", key="dc_date_format")
         
-        if st.button("🔄 Convert Type", key="convert_type"):
+        if st.button("🔄 Convert Type", key="dc_convert_type"):
             try:
                 if target_type == "string":
                     cleaned_df[convert_col] = cleaned_df[convert_col].astype(str)
+                    cleaning_log.append(f"Converted {convert_col} to string")
                 elif target_type == "integer":
                     cleaned_df[convert_col] = pd.to_numeric(cleaned_df[convert_col], errors='coerce').astype('Int64')
+                    cleaning_log.append(f"Converted {convert_col} to integer")
                 elif target_type == "float":
                     cleaned_df[convert_col] = pd.to_numeric(cleaned_df[convert_col], errors='coerce')
+                    cleaning_log.append(f"Converted {convert_col} to float")
                 elif target_type == "datetime":
                     if date_format:
                         cleaned_df[convert_col] = pd.to_datetime(cleaned_df[convert_col], format=date_format, errors='coerce')
                     else:
                         cleaned_df[convert_col] = pd.to_datetime(cleaned_df[convert_col], errors='coerce')
+                    cleaning_log.append(f"Converted {convert_col} to datetime")
                 elif target_type == "category":
                     cleaned_df[convert_col] = cleaned_df[convert_col].astype('category')
+                    cleaning_log.append(f"Converted {convert_col} to category")
                 elif target_type == "boolean":
                     cleaned_df[convert_col] = cleaned_df[convert_col].astype(bool)
+                    cleaning_log.append(f"Converted {convert_col} to boolean")
                 
-                cleaning_log.append(f"Converted {convert_col} to {target_type}")
-                st.success(f"✅ Converted {convert_col} to {target_type}")
+                st.success(f"✅ {cleaning_log[-1]}")
             except Exception as e:
                 st.error(f"❌ Conversion failed: {str(e)}")
     
@@ -5091,17 +5133,21 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             dist_col = st.selectbox(
                 "Select Column",
                 df.columns.tolist(),
-                key="dist_col"
+                key="dc_dist_col"
             )
         
         with col2:
             chart_type = st.selectbox(
                 "Chart Type",
                 ["Histogram", "Bar Chart", "Box Plot", "Violin Plot"],
-                key="dist_chart_type"
+                key="dc_dist_chart_type"
             )
         
-        col_data = df[dist_col]
+        col_data = df[dist_col].dropna()
+        
+        if len(col_data) == 0:
+            st.warning("No valid data in selected column.")
+            return
         
         col1, col2 = st.columns(2)
         
@@ -5135,7 +5181,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                 })
                 st.dataframe(stats_df, use_container_width=True, hide_index=True)
             else:
-                value_counts = col_data.value_counts().head(10).reset_index()
+                value_counts = col_data.value_counts().head(15).reset_index()
                 value_counts.columns = ['Value', 'Count']
                 value_counts['Percentage'] = (value_counts['Count'] / len(col_data) * 100).round(2)
                 st.dataframe(value_counts, use_container_width=True, hide_index=True)
@@ -5151,18 +5197,18 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
         col1, col2 = st.columns(2)
         
         with col1:
-            auto_remove_dups = st.checkbox("Remove duplicate rows", value=True, key="auto_dups")
-            auto_fill_numeric = st.checkbox("Fill numeric missing with median", value=True, key="auto_numeric")
-            auto_fill_categorical = st.checkbox("Fill categorical missing with mode", value=True, key="auto_cat")
+            auto_remove_dups = st.checkbox("Remove duplicate rows", value=True, key="dc_auto_dups")
+            auto_fill_numeric = st.checkbox("Fill numeric missing with median", value=True, key="dc_auto_numeric")
+            auto_fill_categorical = st.checkbox("Fill categorical missing with mode", value=True, key="dc_auto_cat")
         
         with col2:
-            auto_trim_strings = st.checkbox("Trim whitespace from strings", value=True, key="auto_trim")
-            auto_lowercase_cols = st.checkbox("Lowercase column names", value=True, key="auto_lower")
-            auto_remove_empty_cols = st.checkbox("Remove columns with >50% missing", value=False, key="auto_empty")
+            auto_trim_strings = st.checkbox("Trim whitespace from strings", value=True, key="dc_auto_trim")
+            auto_lowercase_cols = st.checkbox("Lowercase column names", value=True, key="dc_auto_lower")
+            auto_remove_empty_cols = st.checkbox("Remove columns with >50% missing", value=False, key="dc_auto_empty")
         
         st.markdown("")
         
-        if st.button("🚀 Run Auto Clean", type="primary", key="run_auto_clean"):
+        if st.button("🚀 Run Auto Clean", type="primary", key="dc_run_auto_clean"):
             with st.spinner("Cleaning data..."):
                 operations = []
                 
@@ -5172,7 +5218,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     cleaned_df = cleaned_df.drop_duplicates()
                     removed = original - len(cleaned_df)
                     if removed > 0:
-                        operations.append(f"Removed {removed} duplicate rows")
+                        operations.append(f"✓ Removed {removed} duplicate rows")
                 
                 # Fill numeric missing
                 if auto_fill_numeric:
@@ -5180,8 +5226,9 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     for col in numeric_cols:
                         missing = cleaned_df[col].isnull().sum()
                         if missing > 0:
-                            cleaned_df[col] = cleaned_df[col].fillna(cleaned_df[col].median())
-                            operations.append(f"Filled {missing} missing values in {col} with median")
+                            median_val = cleaned_df[col].median()
+                            cleaned_df[col] = cleaned_df[col].fillna(median_val)
+                            operations.append(f"✓ Filled {missing} missing in '{col}' with median ({median_val:.2f})")
                 
                 # Fill categorical missing
                 if auto_fill_categorical:
@@ -5189,10 +5236,11 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     for col in cat_cols:
                         missing = cleaned_df[col].isnull().sum()
                         if missing > 0:
-                            mode_val = cleaned_df[col].mode()
-                            if len(mode_val) > 0:
-                                cleaned_df[col] = cleaned_df[col].fillna(mode_val.iloc[0])
-                                operations.append(f"Filled {missing} missing values in {col} with mode")
+                            mode_series = cleaned_df[col].mode()
+                            if len(mode_series) > 0:
+                                mode_val = mode_series.iloc[0]
+                                cleaned_df[col] = cleaned_df[col].fillna(mode_val)
+                                operations.append(f"✓ Filled {missing} missing in '{col}' with mode ({mode_val})")
                 
                 # Trim whitespace
                 if auto_trim_strings:
@@ -5200,12 +5248,12 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     for col in string_cols:
                         cleaned_df[col] = cleaned_df[col].astype(str).str.strip()
                     if len(string_cols) > 0:
-                        operations.append(f"Trimmed whitespace from {len(string_cols)} string columns")
+                        operations.append(f"✓ Trimmed whitespace from {len(string_cols)} string columns")
                 
                 # Lowercase column names
                 if auto_lowercase_cols:
                     cleaned_df.columns = cleaned_df.columns.str.lower().str.replace(' ', '_')
-                    operations.append("Lowercased and standardized column names")
+                    operations.append("✓ Standardized column names (lowercase, underscores)")
                 
                 # Remove empty columns
                 if auto_remove_empty_cols:
@@ -5213,30 +5261,36 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
                     cols_to_drop = [col for col in cleaned_df.columns if cleaned_df[col].isnull().mean() > empty_threshold]
                     if cols_to_drop:
                         cleaned_df = cleaned_df.drop(columns=cols_to_drop)
-                        operations.append(f"Removed {len(cols_to_drop)} columns with >50% missing: {', '.join(cols_to_drop)}")
+                        operations.append(f"✓ Removed {len(cols_to_drop)} columns with >50% missing")
                 
                 cleaning_log.extend(operations)
             
             # Show results
             st.success("✅ Auto cleaning complete!")
             
-            st.markdown("##### Operations Performed")
-            for op in operations:
-                st.markdown(f"• {op}")
+            if operations:
+                st.markdown("##### Operations Performed")
+                for op in operations:
+                    st.markdown(f"• {op}")
             
             # Before/After comparison
+            st.markdown("")
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("##### Before")
+                st.markdown("##### 📊 Before Cleaning")
                 st.metric("Rows", f"{len(df):,}")
                 st.metric("Columns", f"{len(df.columns)}")
-                st.metric("Missing", f"{df.isnull().sum().sum():,}")
+                st.metric("Missing Values", f"{df.isnull().sum().sum():,}")
             
             with col2:
-                st.markdown("##### After")
-                st.metric("Rows", f"{len(cleaned_df):,}", delta=f"{len(cleaned_df)-len(df):,}")
-                st.metric("Columns", f"{len(cleaned_df.columns)}", delta=f"{len(cleaned_df.columns)-len(df.columns)}")
-                st.metric("Missing", f"{cleaned_df.isnull().sum().sum():,}", delta=f"{cleaned_df.isnull().sum().sum()-df.isnull().sum().sum():,}")
+                st.markdown("##### ✨ After Cleaning")
+                rows_diff = len(cleaned_df) - len(df)
+                cols_diff = len(cleaned_df.columns) - len(df.columns)
+                missing_diff = cleaned_df.isnull().sum().sum() - df.isnull().sum().sum()
+                
+                st.metric("Rows", f"{len(cleaned_df):,}", delta=f"{rows_diff:,}" if rows_diff != 0 else None)
+                st.metric("Columns", f"{len(cleaned_df.columns)}", delta=f"{cols_diff}" if cols_diff != 0 else None)
+                st.metric("Missing Values", f"{cleaned_df.isnull().sum().sum():,}", delta=f"{missing_diff:,}" if missing_diff != 0 else None)
     
     # =========================================================================
     # CLEANING LOG & EXPORT
@@ -5249,23 +5303,23 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
             st.markdown(f"{i}. {log}")
     
     # Export option
-    if export_cleaned and len(cleaning_log) > 0:
-        st.markdown("### 📥 Export Cleaned Data")
+    if export_cleaned:
+        st.markdown("### 📥 Export Data")
         
         col1, col2 = st.columns(2)
         
         with col1:
             csv = cleaned_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download Cleaned CSV",
+                label=f"📥 Download {df_name.title()} Data as CSV",
                 data=csv,
-                file_name=f"cleaned_{df_name}_data.csv",
+                file_name=f"{df_name}_data_export.csv",
                 mime="text/csv",
-                key="download_cleaned"
+                key="dc_download_csv"
             )
         
         with col2:
-            st.info(f"Cleaned dataset: {len(cleaned_df):,} rows × {len(cleaned_df.columns)} columns")
+            st.info(f"Dataset: {len(cleaned_df):,} rows × {len(cleaned_df.columns)} columns")
     
     # Return cleaned data
     return cleaned_df, cleaning_log, None, None
@@ -5276,6 +5330,7 @@ def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None
 
 if __name__ == "__main__":
     main()
+
 
 
 
