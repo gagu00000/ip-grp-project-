@@ -12,6 +12,7 @@ Features:
     - Executive/Manager toggle views
     - Faculty dataset testing with column mapping
     - Defensive error handling throughout
+    - File validation with error messages
 
 Author: Data Rescue Team
 Date: 2024
@@ -1012,6 +1013,201 @@ def render_footer():
         <br>© 2024 Data Rescue Team
     </div>
     """, unsafe_allow_html=True)
+
+
+# =============================================================================
+# FILE VALIDATION FUNCTIONS
+# =============================================================================
+
+def validate_products_file(df):
+    """Validate products file has minimum required structure."""
+    if df is None or df.empty:
+        return False, "File is empty or could not be read."
+    
+    # Check for at least some identifiable columns
+    possible_id_cols = ['product_id', 'productid', 'product', 'sku', 'item_id', 'id']
+    possible_price_cols = ['base_price_aed', 'price', 'base_price', 'selling_price', 'unit_price', 'mrp']
+    
+    has_id = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_id_cols] 
+                 for col in df.columns)
+    has_price = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_price_cols] 
+                    for col in df.columns)
+    
+    if not has_id and not has_price:
+        return False, f"Products file must contain product identifier and price columns. Found columns: {', '.join(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}"
+    
+    if len(df.columns) < 2:
+        return False, "Products file must have at least 2 columns."
+    
+    return True, "Valid"
+
+
+def validate_stores_file(df):
+    """Validate stores file has minimum required structure."""
+    if df is None or df.empty:
+        return False, "File is empty or could not be read."
+    
+    possible_id_cols = ['store_id', 'storeid', 'store', 'location_id', 'branch_id', 'id']
+    possible_city_cols = ['city', 'location', 'region', 'area', 'emirate']
+    
+    has_id = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_id_cols] 
+                 for col in df.columns)
+    has_location = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_city_cols] 
+                       for col in df.columns)
+    
+    if not has_id and not has_location:
+        return False, f"Stores file must contain store identifier and location columns. Found columns: {', '.join(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}"
+    
+    if len(df.columns) < 2:
+        return False, "Stores file must have at least 2 columns."
+    
+    return True, "Valid"
+
+
+def validate_sales_file(df):
+    """Validate sales file has minimum required structure."""
+    if df is None or df.empty:
+        return False, "File is empty or could not be read."
+    
+    possible_order_cols = ['order_id', 'orderid', 'order', 'transaction_id', 'txn_id', 'id']
+    possible_qty_cols = ['qty', 'quantity', 'units', 'count', 'amount']
+    possible_price_cols = ['selling_price_aed', 'price', 'selling_price', 'unit_price', 'total', 'amount']
+    
+    has_order = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_order_cols] 
+                    for col in df.columns)
+    has_qty = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_qty_cols] 
+                  for col in df.columns)
+    has_price = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_price_cols] 
+                    for col in df.columns)
+    
+    if not has_order and not has_qty and not has_price:
+        return False, f"Sales file must contain order, quantity, and price columns. Found columns: {', '.join(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}"
+    
+    if len(df.columns) < 3:
+        return False, "Sales file must have at least 3 columns (order_id, qty, price)."
+    
+    return True, "Valid"
+
+
+def validate_inventory_file(df):
+    """Validate inventory file has minimum required structure."""
+    if df is None or df.empty:
+        return False, "File is empty or could not be read."
+    
+    possible_product_cols = ['product_id', 'productid', 'product', 'sku', 'item_id']
+    possible_stock_cols = ['stock_on_hand', 'stock', 'inventory', 'qty', 'quantity', 'on_hand', 'available']
+    
+    has_product = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_product_cols] 
+                      for col in df.columns)
+    has_stock = any(col.lower().replace(' ', '_').replace('-', '_') in [p.lower() for p in possible_stock_cols] 
+                    for col in df.columns)
+    
+    if not has_product and not has_stock:
+        return False, f"Inventory file must contain product identifier and stock columns. Found columns: {', '.join(df.columns[:5])}{'...' if len(df.columns) > 5 else ''}"
+    
+    if len(df.columns) < 2:
+        return False, "Inventory file must have at least 2 columns."
+    
+    return True, "Valid"
+
+
+def render_file_error(message):
+    """Render a styled error message for file validation."""
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, rgba(248, 113, 113, 0.15), rgba(239, 68, 68, 0.1));
+        border: 2px solid #f87171;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    ">
+        <span style="font-size: 1.5rem;">❌</span>
+        <div>
+            <div style="color: #f87171; font-weight: 600; font-size: 1rem; margin-bottom: 4px;">
+                Invalid File Format
+            </div>
+            <div style="color: #fca5a5; font-size: 0.9rem;">
+                {message}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_file_success(filename, rows, cols):
+    """Render a styled success message for valid file."""
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, rgba(74, 222, 128, 0.15), rgba(34, 197, 94, 0.1));
+        border: 2px solid #4ade80;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    ">
+        <span style="font-size: 1.3rem;">✅</span>
+        <div>
+            <div style="color: #4ade80; font-weight: 600; font-size: 0.95rem;">
+                {filename}
+            </div>
+            <div style="color: #86efac; font-size: 0.85rem;">
+                {rows:,} rows × {cols} columns
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_file_warning(message):
+    """Render a styled warning message."""
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(249, 115, 22, 0.1));
+        border: 2px solid #fb923c;
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    ">
+        <span style="font-size: 1.3rem;">⚠️</span>
+        <div style="color: #fdba74; font-size: 0.9rem;">
+            {message}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_validation_summary(uploaded_count, valid_count):
+    """Render a summary of file validation status."""
+    invalid_count = uploaded_count - valid_count
+    
+    if invalid_count > 0:
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.15), rgba(239, 68, 68, 0.1));
+            border: 2px solid #f87171;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 20px 0;
+            text-align: center;
+        ">
+            <span style="font-size: 2.5rem;">🚫</span>
+            <div style="color: #f87171; font-weight: 700; font-size: 1.3rem; margin: 12px 0;">
+                {invalid_count} Invalid File{'s' if invalid_count > 1 else ''} Detected
+            </div>
+            <div style="color: #fca5a5; font-size: 1rem; line-height: 1.6;">
+                Please upload the correct CSV files with the expected column structure.<br>
+                Check the "Expected Data Schema" section below for guidance.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -2772,6 +2968,20 @@ def main():
         st.session_state.raw_data = {}
     if 'cleaning_stats' not in st.session_state:
         st.session_state.cleaning_stats = {}
+    if 'file_validations' not in st.session_state:
+        st.session_state.file_validations = {
+            'products': {'valid': False, 'message': '', 'df': None},
+            'stores': {'valid': False, 'message': '', 'df': None},
+            'sales': {'valid': False, 'message': '', 'df': None},
+            'inventory': {'valid': False, 'message': '', 'df': None}
+        }
+    if 'gen_file_validations' not in st.session_state:
+        st.session_state.gen_file_validations = {
+            'products': {'valid': False, 'message': '', 'df': None},
+            'stores': {'valid': False, 'message': '', 'df': None},
+            'sales': {'valid': False, 'message': '', 'df': None},
+            'inventory': {'valid': False, 'message': '', 'df': None}
+        }
     
     # =========================================================================
     # SIDEBAR
@@ -2868,7 +3078,7 @@ def main():
     render_page_header()
     
     # =========================================================================
-    # DATA LOADING SECTION
+    # DATA LOADING SECTION - UPLOAD CUSTOM
     # =========================================================================
     
     if "Upload" in data_source:
@@ -2877,199 +3087,468 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
+            # Products File
+            st.markdown("**📦 Products**")
             products_file = st.file_uploader(
-                "📦 Products",
+                "Upload Products CSV/Excel",
                 type=['csv', 'xlsx', 'xls'],
-                key='products_upload'
+                key='products_upload',
+                label_visibility="collapsed"
             )
+            
+            if products_file:
+                products_raw = load_data_from_upload(products_file)
+                if products_raw is not None:
+                    is_valid, message = validate_products_file(products_raw)
+                    st.session_state.file_validations['products'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': products_raw if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(products_file.name, len(products_raw), len(products_raw.columns))
+                    else:
+                        render_file_error(message)
+                else:
+                    render_file_error("Could not read file. Please ensure it's a valid CSV or Excel file.")
+            
+            st.markdown("")
+            
+            # Sales File
+            st.markdown("**🛒 Sales**")
             sales_file = st.file_uploader(
-                "🛒 Sales",
+                "Upload Sales CSV/Excel",
                 type=['csv', 'xlsx', 'xls'],
-                key='sales_upload'
+                key='sales_upload',
+                label_visibility="collapsed"
             )
+            
+            if sales_file:
+                sales_raw = load_data_from_upload(sales_file)
+                if sales_raw is not None:
+                    is_valid, message = validate_sales_file(sales_raw)
+                    st.session_state.file_validations['sales'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': sales_raw if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(sales_file.name, len(sales_raw), len(sales_raw.columns))
+                    else:
+                        render_file_error(message)
+                else:
+                    render_file_error("Could not read file. Please ensure it's a valid CSV or Excel file.")
         
         with col2:
+            # Stores File
+            st.markdown("**🏪 Stores**")
             stores_file = st.file_uploader(
-                "🏪 Stores",
+                "Upload Stores CSV/Excel",
                 type=['csv', 'xlsx', 'xls'],
-                key='stores_upload'
+                key='stores_upload',
+                label_visibility="collapsed"
             )
+            
+            if stores_file:
+                stores_raw = load_data_from_upload(stores_file)
+                if stores_raw is not None:
+                    is_valid, message = validate_stores_file(stores_raw)
+                    st.session_state.file_validations['stores'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': stores_raw if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(stores_file.name, len(stores_raw), len(stores_raw.columns))
+                    else:
+                        render_file_error(message)
+                else:
+                    render_file_error("Could not read file. Please ensure it's a valid CSV or Excel file.")
+            
+            st.markdown("")
+            
+            # Inventory File
+            st.markdown("**📊 Inventory**")
             inventory_file = st.file_uploader(
-                "📊 Inventory",
+                "Upload Inventory CSV/Excel",
                 type=['csv', 'xlsx', 'xls'],
-                key='inventory_upload'
+                key='inventory_upload',
+                label_visibility="collapsed"
             )
+            
+            if inventory_file:
+                inventory_raw = load_data_from_upload(inventory_file)
+                if inventory_raw is not None:
+                    is_valid, message = validate_inventory_file(inventory_raw)
+                    st.session_state.file_validations['inventory'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': inventory_raw if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(inventory_file.name, len(inventory_raw), len(inventory_raw.columns))
+                    else:
+                        render_file_error(message)
+                else:
+                    render_file_error("Could not read file. Please ensure it's a valid CSV or Excel file.")
         
-        # Column Mapping Section
+        # Check validation status and show summary
+        validations = st.session_state.file_validations
+        
         if any([products_file, stores_file, sales_file, inventory_file]):
+            # Count valid/invalid files
+            uploaded_count = sum([
+                products_file is not None,
+                stores_file is not None,
+                sales_file is not None,
+                inventory_file is not None
+            ])
+            valid_count = sum([
+                validations['products']['valid'] if products_file else False,
+                validations['stores']['valid'] if stores_file else False,
+                validations['sales']['valid'] if sales_file else False,
+                validations['inventory']['valid'] if inventory_file else False
+            ])
+            
+            if valid_count < uploaded_count:
+                render_divider()
+                render_validation_summary(uploaded_count, valid_count)
+        
+        # Column Mapping Section (only show for valid files)
+        any_valid = any(v['valid'] for v in validations.values())
+        
+        if any_valid:
             render_divider()
             render_section_header("🔗", "Column Mapping", "Map your columns to the expected schema")
             
-            with st.expander("📦 Map Product Columns", expanded=products_file is not None):
-                if products_file:
-                    products_raw = load_data_from_upload(products_file)
-                    if products_raw is not None:
-                        st.dataframe(products_raw.head(3), use_container_width=True)
-                        products_mapping = create_column_mapping_ui(
-                            products_raw,
-                            'Products',
-                            {
-                                'product_id': 'Unique product identifier',
-                                'category': 'Product category',
-                                'brand': 'Product brand',
-                                'base_price_aed': 'Base selling price (AED)',
-                                'unit_cost_aed': 'Unit cost (AED)',
-                                'tax_rate': 'Tax rate (decimal)',
-                                'launch_flag': 'New or Regular'
-                            }
-                        )
-                        st.session_state.raw_data['products'] = products_raw
-                        st.session_state.raw_data['products_mapping'] = products_mapping
+            # Products mapping
+            if validations['products']['valid'] and validations['products']['df'] is not None:
+                with st.expander("📦 Map Product Columns", expanded=True):
+                    products_raw = validations['products']['df']
+                    st.dataframe(products_raw.head(3), use_container_width=True)
+                    products_mapping = create_column_mapping_ui(
+                        products_raw,
+                        'Products',
+                        {
+                            'product_id': 'Unique product identifier',
+                            'category': 'Product category',
+                            'brand': 'Product brand',
+                            'base_price_aed': 'Base selling price (AED)',
+                            'unit_cost_aed': 'Unit cost (AED)',
+                            'tax_rate': 'Tax rate (decimal)',
+                            'launch_flag': 'New or Regular'
+                        }
+                    )
+                    st.session_state.raw_data['products'] = products_raw
+                    st.session_state.raw_data['products_mapping'] = products_mapping
             
-            with st.expander("🏪 Map Store Columns", expanded=stores_file is not None):
-                if stores_file:
-                    stores_raw = load_data_from_upload(stores_file)
-                    if stores_raw is not None:
-                        st.dataframe(stores_raw.head(3), use_container_width=True)
-                        stores_mapping = create_column_mapping_ui(
-                            stores_raw,
-                            'Stores',
-                            {
-                                'store_id': 'Unique store identifier',
-                                'city': 'City name',
-                                'channel': 'Sales channel (App/Web/Marketplace)',
-                                'fulfillment_type': 'Fulfillment type (Own/3PL)'
-                            }
-                        )
-                        st.session_state.raw_data['stores'] = stores_raw
-                        st.session_state.raw_data['stores_mapping'] = stores_mapping
+            # Stores mapping
+            if validations['stores']['valid'] and validations['stores']['df'] is not None:
+                with st.expander("🏪 Map Store Columns", expanded=True):
+                    stores_raw = validations['stores']['df']
+                    st.dataframe(stores_raw.head(3), use_container_width=True)
+                    stores_mapping = create_column_mapping_ui(
+                        stores_raw,
+                        'Stores',
+                        {
+                            'store_id': 'Unique store identifier',
+                            'city': 'City name',
+                            'channel': 'Sales channel (App/Web/Marketplace)',
+                            'fulfillment_type': 'Fulfillment type (Own/3PL)'
+                        }
+                    )
+                    st.session_state.raw_data['stores'] = stores_raw
+                    st.session_state.raw_data['stores_mapping'] = stores_mapping
             
-            with st.expander("🛒 Map Sales Columns", expanded=sales_file is not None):
-                if sales_file:
-                    sales_raw = load_data_from_upload(sales_file)
-                    if sales_raw is not None:
-                        st.dataframe(sales_raw.head(3), use_container_width=True)
-                        sales_mapping = create_column_mapping_ui(
-                            sales_raw,
-                            'Sales',
-                            {
-                                'order_id': 'Unique order identifier',
-                                'order_time': 'Order timestamp',
-                                'product_id': 'Product identifier',
-                                'store_id': 'Store identifier',
-                                'qty': 'Quantity',
-                                'selling_price_aed': 'Selling price (AED)',
-                                'discount_pct': 'Discount percentage',
-                                'payment_status': 'Payment status',
-                                'return_flag': 'Return indicator (0/1)'
-                            }
-                        )
-                        st.session_state.raw_data['sales'] = sales_raw
-                        st.session_state.raw_data['sales_mapping'] = sales_mapping
+            # Sales mapping
+            if validations['sales']['valid'] and validations['sales']['df'] is not None:
+                with st.expander("🛒 Map Sales Columns", expanded=True):
+                    sales_raw = validations['sales']['df']
+                    st.dataframe(sales_raw.head(3), use_container_width=True)
+                    sales_mapping = create_column_mapping_ui(
+                        sales_raw,
+                        'Sales',
+                        {
+                            'order_id': 'Unique order identifier',
+                            'order_time': 'Order timestamp',
+                            'product_id': 'Product identifier',
+                            'store_id': 'Store identifier',
+                            'qty': 'Quantity',
+                            'selling_price_aed': 'Selling price (AED)',
+                            'discount_pct': 'Discount percentage',
+                            'payment_status': 'Payment status',
+                            'return_flag': 'Return indicator (0/1)'
+                        }
+                    )
+                    st.session_state.raw_data['sales'] = sales_raw
+                    st.session_state.raw_data['sales_mapping'] = sales_mapping
             
-            with st.expander("📊 Map Inventory Columns", expanded=inventory_file is not None):
-                if inventory_file:
-                    inventory_raw = load_data_from_upload(inventory_file)
-                    if inventory_raw is not None:
-                        st.dataframe(inventory_raw.head(3), use_container_width=True)
-                        inventory_mapping = create_column_mapping_ui(
-                            inventory_raw,
-                            'Inventory',
-                            {
-                                'snapshot_date': 'Snapshot date',
-                                'product_id': 'Product identifier',
-                                'store_id': 'Store identifier',
-                                'stock_on_hand': 'Stock quantity',
-                                'reorder_point': 'Reorder point',
-                                'lead_time_days': 'Lead time in days'
-                            }
-                        )
-                        st.session_state.raw_data['inventory'] = inventory_raw
-                        st.session_state.raw_data['inventory_mapping'] = inventory_mapping
+            # Inventory mapping
+            if validations['inventory']['valid'] and validations['inventory']['df'] is not None:
+                with st.expander("📊 Map Inventory Columns", expanded=True):
+                    inventory_raw = validations['inventory']['df']
+                    st.dataframe(inventory_raw.head(3), use_container_width=True)
+                    inventory_mapping = create_column_mapping_ui(
+                        inventory_raw,
+                        'Inventory',
+                        {
+                            'snapshot_date': 'Snapshot date',
+                            'product_id': 'Product identifier',
+                            'store_id': 'Store identifier',
+                            'stock_on_hand': 'Stock quantity',
+                            'reorder_point': 'Reorder point',
+                            'lead_time_days': 'Lead time in days'
+                        }
+                    )
+                    st.session_state.raw_data['inventory'] = inventory_raw
+                    st.session_state.raw_data['inventory_mapping'] = inventory_mapping
             
             st.markdown("")
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🚀 Process & Clean Data", type="primary", use_container_width=True):
-                    with st.spinner("🔄 Cleaning data..."):
-                        cleaner = DataCleaner()
-                        cleaned = {}
-                        
-                        if 'products' in st.session_state.raw_data and 'products_mapping' in st.session_state.raw_data:
-                            mapped_products = apply_column_mapping(
-                                st.session_state.raw_data['products'],
-                                st.session_state.raw_data['products_mapping']
-                            )
-                            cleaned['products'] = cleaner.clean_products(mapped_products)
-                        else:
-                            cleaned['products'] = pd.DataFrame()
-                        
-                        if 'stores' in st.session_state.raw_data and 'stores_mapping' in st.session_state.raw_data:
-                            mapped_stores = apply_column_mapping(
-                                st.session_state.raw_data['stores'],
-                                st.session_state.raw_data['stores_mapping']
-                            )
-                            cleaned['stores'] = cleaner.clean_stores(mapped_stores)
-                        else:
-                            cleaned['stores'] = pd.DataFrame()
-                        
-                        if 'sales' in st.session_state.raw_data and 'sales_mapping' in st.session_state.raw_data:
-                            mapped_sales = apply_column_mapping(
-                                st.session_state.raw_data['sales'],
-                                st.session_state.raw_data['sales_mapping']
-                            )
-                            cleaned['sales'] = cleaner.clean_sales(mapped_sales)
-                        else:
-                            cleaned['sales'] = pd.DataFrame()
-                        
-                        if 'inventory' in st.session_state.raw_data and 'inventory_mapping' in st.session_state.raw_data:
-                            mapped_inventory = apply_column_mapping(
-                                st.session_state.raw_data['inventory'],
-                                st.session_state.raw_data['inventory_mapping']
-                            )
-                            cleaned['inventory'] = cleaner.clean_inventory(mapped_inventory)
-                        else:
-                            cleaned['inventory'] = pd.DataFrame()
-                        
-                        st.session_state.cleaned_data = cleaned
-                        st.session_state.issues_log = cleaner.get_issues_dataframe()
-                        st.session_state.cleaning_stats = cleaner.cleaning_stats
-                        st.session_state.data_loaded = True
-                        
-                        st.success("✅ Data cleaned successfully!")
-                        st.rerun()
+                # Check for any invalid files
+                has_invalid = (
+                    (products_file and not validations['products']['valid']) or
+                    (stores_file and not validations['stores']['valid']) or
+                    (sales_file and not validations['sales']['valid']) or
+                    (inventory_file and not validations['inventory']['valid'])
+                )
+                
+                if has_invalid:
+                    st.button(
+                        "🚫 Fix Invalid Files First",
+                        type="secondary",
+                        use_container_width=True,
+                        disabled=True
+                    )
+                    st.caption("⚠️ Please fix the invalid files before processing.")
+                else:
+                    if st.button("🚀 Process & Clean Data", type="primary", use_container_width=True):
+                        with st.spinner("🔄 Cleaning data..."):
+                            cleaner = DataCleaner()
+                            cleaned = {}
+                            
+                            if 'products' in st.session_state.raw_data and 'products_mapping' in st.session_state.raw_data:
+                                mapped_products = apply_column_mapping(
+                                    st.session_state.raw_data['products'],
+                                    st.session_state.raw_data['products_mapping']
+                                )
+                                cleaned['products'] = cleaner.clean_products(mapped_products)
+                            else:
+                                cleaned['products'] = pd.DataFrame()
+                            
+                            if 'stores' in st.session_state.raw_data and 'stores_mapping' in st.session_state.raw_data:
+                                mapped_stores = apply_column_mapping(
+                                    st.session_state.raw_data['stores'],
+                                    st.session_state.raw_data['stores_mapping']
+                                )
+                                cleaned['stores'] = cleaner.clean_stores(mapped_stores)
+                            else:
+                                cleaned['stores'] = pd.DataFrame()
+                            
+                            if 'sales' in st.session_state.raw_data and 'sales_mapping' in st.session_state.raw_data:
+                                mapped_sales = apply_column_mapping(
+                                    st.session_state.raw_data['sales'],
+                                    st.session_state.raw_data['sales_mapping']
+                                )
+                                cleaned['sales'] = cleaner.clean_sales(mapped_sales)
+                            else:
+                                cleaned['sales'] = pd.DataFrame()
+                            
+                            if 'inventory' in st.session_state.raw_data and 'inventory_mapping' in st.session_state.raw_data:
+                                mapped_inventory = apply_column_mapping(
+                                    st.session_state.raw_data['inventory'],
+                                    st.session_state.raw_data['inventory_mapping']
+                                )
+                                cleaned['inventory'] = cleaner.clean_inventory(mapped_inventory)
+                            else:
+                                cleaned['inventory'] = pd.DataFrame()
+                            
+                            st.session_state.cleaned_data = cleaned
+                            st.session_state.issues_log = cleaner.get_issues_dataframe()
+                            st.session_state.cleaning_stats = cleaner.cleaning_stats
+                            st.session_state.data_loaded = True
+                            
+                            st.success("✅ Data cleaned successfully!")
+                            st.rerun()
     
-    else:  # Load Generated Data
+    # =========================================================================
+    # DATA LOADING SECTION - LOAD GENERATED
+    # =========================================================================
+    
+    else:
         render_section_header("📂", "Load Generated Data", "Upload the CSV files from data_generator.py")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            products_file = st.file_uploader("📦 products.csv", type=['csv'], key='gen_products')
-            sales_file = st.file_uploader("🛒 sales_raw.csv", type=['csv'], key='gen_sales')
+            st.markdown("**📦 products.csv**")
+            products_file = st.file_uploader(
+                "Upload products.csv",
+                type=['csv'],
+                key='gen_products',
+                label_visibility="collapsed"
+            )
+            
+            if products_file:
+                try:
+                    products_df = pd.read_csv(products_file)
+                    is_valid, message = validate_products_file(products_df)
+                    st.session_state.gen_file_validations['products'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': products_df if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(products_file.name, len(products_df), len(products_df.columns))
+                    else:
+                        render_file_error(message)
+                except Exception as e:
+                    render_file_error(f"Error reading file: {str(e)}")
+            
+            st.markdown("")
+            
+            st.markdown("**🛒 sales_raw.csv**")
+            sales_file = st.file_uploader(
+                "Upload sales_raw.csv",
+                type=['csv'],
+                key='gen_sales',
+                label_visibility="collapsed"
+            )
+            
+            if sales_file:
+                try:
+                    sales_df = pd.read_csv(sales_file)
+                    is_valid, message = validate_sales_file(sales_df)
+                    st.session_state.gen_file_validations['sales'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': sales_df if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(sales_file.name, len(sales_df), len(sales_df.columns))
+                    else:
+                        render_file_error(message)
+                except Exception as e:
+                    render_file_error(f"Error reading file: {str(e)}")
         
         with col2:
-            stores_file = st.file_uploader("🏪 stores.csv", type=['csv'], key='gen_stores')
-            inventory_file = st.file_uploader("📊 inventory_snapshot.csv", type=['csv'], key='gen_inventory')
+            st.markdown("**🏪 stores.csv**")
+            stores_file = st.file_uploader(
+                "Upload stores.csv",
+                type=['csv'],
+                key='gen_stores',
+                label_visibility="collapsed"
+            )
+            
+            if stores_file:
+                try:
+                    stores_df = pd.read_csv(stores_file)
+                    is_valid, message = validate_stores_file(stores_df)
+                    st.session_state.gen_file_validations['stores'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': stores_df if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(stores_file.name, len(stores_df), len(stores_df.columns))
+                    else:
+                        render_file_error(message)
+                except Exception as e:
+                    render_file_error(f"Error reading file: {str(e)}")
+            
+            st.markdown("")
+            
+            st.markdown("**📊 inventory_snapshot.csv**")
+            inventory_file = st.file_uploader(
+                "Upload inventory_snapshot.csv",
+                type=['csv'],
+                key='gen_inventory',
+                label_visibility="collapsed"
+            )
+            
+            if inventory_file:
+                try:
+                    inventory_df = pd.read_csv(inventory_file)
+                    is_valid, message = validate_inventory_file(inventory_df)
+                    st.session_state.gen_file_validations['inventory'] = {
+                        'valid': is_valid,
+                        'message': message,
+                        'df': inventory_df if is_valid else None
+                    }
+                    
+                    if is_valid:
+                        render_file_success(inventory_file.name, len(inventory_df), len(inventory_df.columns))
+                    else:
+                        render_file_error(message)
+                except Exception as e:
+                    render_file_error(f"Error reading file: {str(e)}")
+        
+        # Validation summary for generated files
+        validations = st.session_state.gen_file_validations
+        
+        if any([products_file, stores_file, sales_file, inventory_file]):
+            uploaded_count = sum([
+                products_file is not None,
+                stores_file is not None,
+                sales_file is not None,
+                inventory_file is not None
+            ])
+            valid_count = sum([
+                validations['products']['valid'] if products_file else False,
+                validations['stores']['valid'] if stores_file else False,
+                validations['sales']['valid'] if sales_file else False,
+                validations['inventory']['valid'] if inventory_file else False
+            ])
+            
+            if valid_count < uploaded_count:
+                render_divider()
+                render_validation_summary(uploaded_count, valid_count)
         
         st.markdown("")
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🚀 Load & Clean Data", type="primary", use_container_width=True):
-                if all([products_file, stores_file, sales_file, inventory_file]):
+            all_files_uploaded = all([products_file, stores_file, sales_file, inventory_file])
+            all_files_valid = all([
+                validations['products']['valid'],
+                validations['stores']['valid'],
+                validations['sales']['valid'],
+                validations['inventory']['valid']
+            ])
+            
+            if not all_files_uploaded:
+                st.button(
+                    "📤 Upload All 4 Files First",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=True
+                )
+                st.caption("⚠️ Please upload all 4 CSV files.")
+            elif not all_files_valid:
+                st.button(
+                    "🚫 Fix Invalid Files First",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=True
+                )
+                st.caption("⚠️ Please fix the invalid files before processing.")
+            else:
+                if st.button("🚀 Load & Clean Data", type="primary", use_container_width=True):
                     with st.spinner("🔄 Loading and cleaning data..."):
                         cleaner = DataCleaner()
                         
-                        products_df = pd.read_csv(products_file)
-                        stores_df = pd.read_csv(stores_file)
-                        sales_df = pd.read_csv(sales_file)
-                        inventory_df = pd.read_csv(inventory_file)
-                        
                         cleaned = cleaner.run_full_pipeline(
-                            products_df=products_df,
-                            stores_df=stores_df,
-                            sales_df=sales_df,
-                            inventory_df=inventory_df
+                            products_df=validations['products']['df'],
+                            stores_df=validations['stores']['df'],
+                            sales_df=validations['sales']['df'],
+                            inventory_df=validations['inventory']['df']
                         )
                         
                         st.session_state.cleaned_data = cleaned
@@ -3079,8 +3558,6 @@ def main():
                         
                         st.success("✅ Data loaded and cleaned successfully!")
                         st.rerun()
-                else:
-                    st.warning("⚠️ Please upload all 4 data files.")
     
     # =========================================================================
     # MAIN DASHBOARD (Only show if data is loaded)
@@ -3426,7 +3903,7 @@ def main():
                 )
     
     else:
-        # No data loaded yet
+        # No data loaded yet - Show getting started guide
         render_insight_box(
             '👆',
             'Getting Started',
