@@ -2,10 +2,15 @@
 =============================================================================
 UAE PROMO PULSE SIMULATOR + DATA RESCUE DASHBOARD
 =============================================================================
-Complete Streamlit application with integrated:
-    - Data Cleaning & Validation (Data Rescue Toolkit)
-    - KPI Computation & Promo Simulation (Promo Pulse Simulator)
-    - Executive & Manager Dashboard Views
+Premium Executive Dashboard with Navy Blue & Silver Theme
+
+Features:
+    - Modern dark theme with gradient backgrounds
+    - Custom KPI cards with hover effects
+    - Styled insight boxes and status badges
+    - Professional Plotly charts with consistent theming
+    - Executive/Manager toggle views
+    - Faculty dataset testing with column mapping
 
 Author: Data Rescue Team
 Date: 2024
@@ -33,16 +38,802 @@ warnings.filterwarnings('ignore')
 # =============================================================================
 st.set_page_config(
     page_title="UAE Promo Pulse Simulator",
-    page_icon="🛒",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =============================================================================
+# COLOR PALETTE - NAVY BLUE & SILVER EXECUTIVE THEME
+# =============================================================================
+
+COLORS = {
+    # Main Colors
+    'primary': '#3a86ff',
+    'secondary': '#4cc9f0',
+    'accent': '#7209b7',
+    
+    # Status Colors
+    'success': '#4ade80',
+    'warning': '#fb923c',
+    'danger': '#f87171',
+    
+    # Neutral Colors
+    'neutral': '#8facc4',
+    'dark': '#0a1628',
+    'medium': '#1a2d47',
+    'light': '#2a4a7f',
+    
+    # Text Colors
+    'text_primary': '#ffffff',
+    'text_secondary': '#e8e8e8',
+    'text_muted': '#8facc4',
+    'text_dark': '#b0b0b0',
+}
+
+CHART_COLORS = [
+    '#3a86ff',  # Blue
+    '#4cc9f0',  # Cyan
+    '#4ade80',  # Green
+    '#fb923c',  # Orange
+    '#f87171',  # Red
+    '#a78bfa',  # Light Purple
+    '#7209b7',  # Dark Purple
+    '#fbbf24',  # Yellow
+    '#ec4899',  # Pink
+    '#14b8a6',  # Teal
+]
+
+# =============================================================================
+# CUSTOM CSS STYLING
+# =============================================================================
+
+st.markdown("""
+<style>
+    /* ===== IMPORTS ===== */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* ===== ROOT VARIABLES ===== */
+    :root {
+        --primary: #3a86ff;
+        --secondary: #4cc9f0;
+        --success: #4ade80;
+        --warning: #fb923c;
+        --danger: #f87171;
+        --dark: #0a1628;
+        --medium: #1a2d47;
+        --light: #2a4a7f;
+    }
+    
+    /* ===== MAIN BACKGROUND ===== */
+    .stApp {
+        background: linear-gradient(135deg, #0a1628 0%, #1a2d47 50%, #0d1b2a 100%);
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* ===== HIDE STREAMLIT BRANDING ===== */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* ===== SIDEBAR ===== */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0a1628 0%, #152238 100%);
+        border-right: 2px solid #3a86ff;
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown {
+        color: #e8e8e8;
+    }
+    
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stMultiSelect label,
+    [data-testid="stSidebar"] .stSlider label,
+    [data-testid="stSidebar"] .stNumberInput label,
+    [data-testid="stSidebar"] .stDateInput label {
+        color: #e8e8e8 !important;
+        font-weight: 500;
+    }
+    
+    [data-testid="stSidebar"] .stRadio label {
+        color: #e8e8e8 !important;
+    }
+    
+    /* ===== SIDEBAR HEADER ===== */
+    .sidebar-header {
+        background: linear-gradient(135deg, #3a86ff 0%, #4cc9f0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 1.5rem;
+        font-weight: 700;
+        text-align: center;
+        padding: 10px 0;
+        margin-bottom: 20px;
+    }
+    
+    /* ===== HEADINGS ===== */
+    h1 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 2.5rem !important;
+        letter-spacing: -0.5px;
+    }
+    
+    h2 {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 1.8rem !important;
+        border-bottom: 2px solid #3a86ff;
+        padding-bottom: 10px;
+        margin-bottom: 25px !important;
+    }
+    
+    h3 {
+        color: #e8e8e8 !important;
+        font-weight: 600 !important;
+        font-size: 1.3rem !important;
+    }
+    
+    h4, h5, h6 {
+        color: #e8e8e8 !important;
+    }
+    
+    /* ===== PARAGRAPH TEXT ===== */
+    p, .stMarkdown {
+        color: #d0d0d0;
+    }
+    
+    /* ===== NATIVE METRICS (hide default) ===== */
+    [data-testid="stMetricValue"] {
+        color: #3a86ff;
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #8facc4;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.75rem;
+    }
+    
+    [data-testid="stMetricDelta"] svg {
+        display: none;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        color: #4ade80;
+    }
+    
+    /* ===== DIVIDER ===== */
+    .divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #3a86ff, transparent);
+        margin: 30px 0;
+        border: none;
+    }
+    
+    .divider-subtle {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #2a4a7f, transparent);
+        margin: 20px 0;
+        border: none;
+    }
+    
+    /* ===== KPI CARDS ===== */
+    .kpi-container {
+        display: flex;
+        gap: 20px;
+        margin: 20px 0;
+    }
+    
+    .kpi-card {
+        background: linear-gradient(135deg, #1a2d47 0%, #0d1b2a 100%);
+        border: 1px solid #2a4a7f;
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #3a86ff, #4cc9f0);
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 30px rgba(58, 134, 255, 0.2);
+        border-color: #3a86ff;
+    }
+    
+    .kpi-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+    
+    .kpi-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 10px 0;
+        line-height: 1.2;
+    }
+    
+    .kpi-value-small {
+        font-size: 1.6rem;
+    }
+    
+    .kpi-label {
+        color: #8facc4;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-weight: 600;
+    }
+    
+    .kpi-delta {
+        margin-top: 10px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .kpi-delta-positive {
+        color: #4ade80;
+    }
+    
+    .kpi-delta-negative {
+        color: #f87171;
+    }
+    
+    .kpi-delta-neutral {
+        color: #8facc4;
+    }
+    
+    /* KPI Card Color Variants */
+    .kpi-card-primary::before {
+        background: linear-gradient(90deg, #3a86ff, #4cc9f0);
+    }
+    
+    .kpi-card-success::before {
+        background: linear-gradient(90deg, #4ade80, #14b8a6);
+    }
+    
+    .kpi-card-warning::before {
+        background: linear-gradient(90deg, #fb923c, #fbbf24);
+    }
+    
+    .kpi-card-danger::before {
+        background: linear-gradient(90deg, #f87171, #ec4899);
+    }
+    
+    /* ===== INSIGHT BOX ===== */
+    .insight-box {
+        background: linear-gradient(135deg, #1a2d47 0%, #0d1b2a 100%);
+        border: 1px solid #2a4a7f;
+        border-left: 4px solid #3a86ff;
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin: 20px 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .insight-box-success {
+        border-left-color: #4ade80;
+    }
+    
+    .insight-box-warning {
+        border-left-color: #fb923c;
+    }
+    
+    .insight-box-danger {
+        border-left-color: #f87171;
+    }
+    
+    .insight-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 15px;
+    }
+    
+    .insight-icon {
+        font-size: 1.5rem;
+    }
+    
+    .insight-title {
+        color: #3a86ff;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    .insight-title-success {
+        color: #4ade80;
+    }
+    
+    .insight-title-warning {
+        color: #fb923c;
+    }
+    
+    .insight-title-danger {
+        color: #f87171;
+    }
+    
+    .insight-text {
+        color: #d0d0d0;
+        font-size: 0.95rem;
+        line-height: 1.8;
+        margin: 0;
+    }
+    
+    /* ===== STATUS BOX ===== */
+    .status-box {
+        background: linear-gradient(135deg, rgba(58, 134, 255, 0.1), #0d1b2a);
+        border: 1px solid #3a86ff;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 15px 0;
+    }
+    
+    .status-box-success {
+        background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), #0d1b2a);
+        border-color: #4ade80;
+    }
+    
+    .status-box-warning {
+        background: linear-gradient(135deg, rgba(251, 146, 60, 0.1), #0d1b2a);
+        border-color: #fb923c;
+    }
+    
+    .status-box-danger {
+        background: linear-gradient(135deg, rgba(248, 113, 113, 0.1), #0d1b2a);
+        border-color: #f87171;
+    }
+    
+    .status-label {
+        color: #8facc4;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 8px;
+    }
+    
+    .status-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #3a86ff;
+    }
+    
+    .status-value-success {
+        color: #4ade80;
+    }
+    
+    .status-value-warning {
+        color: #fb923c;
+    }
+    
+    .status-value-danger {
+        color: #f87171;
+    }
+    
+    /* ===== RECOMMENDATION BOX ===== */
+    .recommendation-box {
+        background: linear-gradient(135deg, #1a2d47 0%, #152238 100%);
+        border: 1px solid #2a4a7f;
+        border-radius: 16px;
+        padding: 28px;
+        margin: 25px 0;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .recommendation-box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, #3a86ff, #4cc9f0, #4ade80);
+    }
+    
+    .recommendation-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .recommendation-icon {
+        font-size: 1.8rem;
+    }
+    
+    .recommendation-title {
+        color: #ffffff;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .recommendation-content {
+        color: #d0d0d0;
+        font-size: 1rem;
+        line-height: 2;
+    }
+    
+    .recommendation-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin: 12px 0;
+        padding: 12px 16px;
+        background: rgba(58, 134, 255, 0.05);
+        border-radius: 8px;
+        border-left: 3px solid #3a86ff;
+    }
+    
+    .recommendation-item-success {
+        border-left-color: #4ade80;
+        background: rgba(74, 222, 128, 0.05);
+    }
+    
+    .recommendation-item-warning {
+        border-left-color: #fb923c;
+        background: rgba(251, 146, 60, 0.05);
+    }
+    
+    .recommendation-item-danger {
+        border-left-color: #f87171;
+        background: rgba(248, 113, 113, 0.05);
+    }
+    
+    /* ===== CONSTRAINT CARDS ===== */
+    .constraint-card {
+        background: linear-gradient(135deg, #1a2d47 0%, #0d1b2a 100%);
+        border: 1px solid #2a4a7f;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .constraint-icon {
+        font-size: 2rem;
+    }
+    
+    .constraint-content {
+        flex: 1;
+    }
+    
+    .constraint-label {
+        color: #8facc4;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .constraint-status {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+    
+    .constraint-pass {
+        color: #4ade80;
+    }
+    
+    .constraint-fail {
+        color: #f87171;
+    }
+    
+    /* ===== DATA TABLE STYLING ===== */
+    .styled-table {
+        background: #1a2d47;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #2a4a7f;
+    }
+    
+    .stDataFrame {
+        border: 1px solid #2a4a7f !important;
+        border-radius: 12px !important;
+    }
+    
+    .stDataFrame [data-testid="stTable"] {
+        background: #1a2d47;
+    }
+    
+    /* ===== RADIO BUTTONS ===== */
+    .stRadio > div {
+        background: linear-gradient(135deg, rgba(58, 134, 255, 0.1), rgba(26, 45, 71, 0.5));
+        border-radius: 12px;
+        padding: 12px 16px;
+        border: 1px solid #2a4a7f;
+    }
+    
+    .stRadio > div:hover {
+        border-color: #3a86ff;
+    }
+    
+    .stRadio > div > label {
+        color: #e8e8e8 !important;
+    }
+    
+    /* ===== BUTTONS ===== */
+    .stButton > button {
+        background: linear-gradient(135deg, #3a86ff 0%, #4cc9f0 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 28px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(58, 134, 255, 0.4);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+    
+    /* Download Button */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #1a2d47 0%, #0d1b2a 100%);
+        border: 1px solid #3a86ff;
+        color: #3a86ff;
+    }
+    
+    .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #3a86ff 0%, #4cc9f0 100%);
+        color: white;
+    }
+    
+    /* ===== SELECT BOXES ===== */
+    .stSelectbox > div > div {
+        background-color: #1a2d47;
+        border-color: #2a4a7f;
+        border-radius: 8px;
+    }
+    
+    .stSelectbox > div > div:hover {
+        border-color: #3a86ff;
+    }
+    
+    /* ===== SLIDERS ===== */
+    .stSlider > div > div > div {
+        background-color: #3a86ff;
+    }
+    
+    /* ===== NUMBER INPUT ===== */
+    .stNumberInput > div > div > input {
+        background-color: #1a2d47;
+        border-color: #2a4a7f;
+        color: #e8e8e8;
+        border-radius: 8px;
+    }
+    
+    /* ===== TEXT INPUT ===== */
+    .stTextInput > div > div > input {
+        background-color: #1a2d47;
+        border-color: #2a4a7f;
+        color: #e8e8e8;
+        border-radius: 8px;
+    }
+    
+    /* ===== FILE UPLOADER ===== */
+    .stFileUploader > div {
+        background-color: #1a2d47;
+        border: 2px dashed #2a4a7f;
+        border-radius: 12px;
+        padding: 20px;
+    }
+    
+    .stFileUploader > div:hover {
+        border-color: #3a86ff;
+    }
+    
+    /* ===== TABS ===== */
+    .stTabs [data-baseweb="tab-list"] {
+        background: linear-gradient(135deg, rgba(58, 134, 255, 0.1), rgba(26, 45, 71, 0.5));
+        border-radius: 12px;
+        padding: 6px;
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        color: #8facc4;
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #3a86ff 0%, #4cc9f0 100%);
+        color: white;
+    }
+    
+    /* ===== EXPANDER ===== */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #1a2d47 0%, #152238 100%);
+        border: 1px solid #2a4a7f;
+        border-radius: 10px;
+        color: #e8e8e8;
+        font-weight: 500;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        border-color: #3a86ff;
+    }
+    
+    .streamlit-expanderContent {
+        background: #0d1b2a;
+        border: 1px solid #2a4a7f;
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    /* ===== ALERTS ===== */
+    .stAlert {
+        border-radius: 10px;
+    }
+    
+    /* ===== SPINNER ===== */
+    .stSpinner > div {
+        border-top-color: #3a86ff !important;
+    }
+    
+    /* ===== PROGRESS BAR ===== */
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #3a86ff, #4cc9f0);
+        border-radius: 10px;
+    }
+    
+    /* ===== SECTION HEADER ===== */
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 30px 0 20px 0;
+    }
+    
+    .section-icon {
+        font-size: 1.8rem;
+    }
+    
+    .section-title {
+        color: #ffffff;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .section-subtitle {
+        color: #8facc4;
+        font-size: 0.9rem;
+        margin-top: 5px;
+    }
+    
+    /* ===== VIEW TOGGLE ===== */
+    .view-toggle {
+        background: linear-gradient(135deg, #1a2d47 0%, #0d1b2a 100%);
+        border: 1px solid #2a4a7f;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .view-toggle-label {
+        color: #8facc4;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 10px;
+    }
+    
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #0a1628;
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #3a86ff, #4cc9f0);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #4cc9f0, #3a86ff);
+    }
+    
+    /* ===== PAGE HEADER ===== */
+    .page-header {
+        background: linear-gradient(135deg, rgba(58, 134, 255, 0.1), rgba(26, 45, 71, 0.3));
+        border: 1px solid #2a4a7f;
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3a86ff 0%, #4cc9f0 50%, #4ade80 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+    
+    .page-subtitle {
+        color: #8facc4;
+        font-size: 1.1rem;
+        font-weight: 400;
+    }
+    
+    /* ===== FOOTER ===== */
+    .footer {
+        text-align: center;
+        padding: 30px 0;
+        margin-top: 50px;
+        border-top: 1px solid #2a4a7f;
+        color: #8facc4;
+        font-size: 0.85rem;
+    }
+    
+    .footer-brand {
+        color: #3a86ff;
+        font-weight: 600;
+    }
+    
+    /* ===== ANIMATION ===== */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+    }
+    
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+        .kpi-value {
+            font-size: 1.6rem;
+        }
+        .page-title {
+            font-size: 1.8rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# =============================================================================
 # CONSTANTS & CONFIGURATION
 # =============================================================================
 
-# Valid values for validation
 VALID_CITIES = ['Dubai', 'Abu Dhabi', 'Sharjah']
 VALID_CHANNELS = ['App', 'Web', 'Marketplace']
 VALID_CATEGORIES = ['Electronics', 'Fashion', 'Grocery', 'Home & Garden', 'Beauty', 'Sports']
@@ -50,7 +841,6 @@ VALID_PAYMENT_STATUSES = ['Paid', 'Failed', 'Refunded']
 VALID_FULFILLMENT_TYPES = ['Own', '3PL']
 VALID_LAUNCH_FLAGS = ['New', 'Regular']
 
-# City name standardization mapping
 CITY_MAPPING = {
     'dubai': 'Dubai', 'DUBAI': 'Dubai', 'Dubayy': 'Dubai', 'DXB': 'Dubai', 'Dубай': 'Dubai',
     'abu dhabi': 'Abu Dhabi', 'ABU DHABI': 'Abu Dhabi', 'AbuDhabi': 'Abu Dhabi', 
@@ -59,68 +849,236 @@ CITY_MAPPING = {
     'Sharijah': 'Sharjah', 'Al Sharjah': 'Sharjah'
 }
 
-# Outlier thresholds
 QTY_MAX_THRESHOLD = 20
 QTY_OUTLIER_CAP = 10
 PRICE_MULTIPLIER_THRESHOLD = 5
 
-# Uplift configuration (per spec: document assumptions)
 UPLIFT_CONFIG = {
-    'base_multiplier': 0.03,  # 3% demand increase per 1% discount
-    'max_uplift': 2.0,        # Maximum 2x demand increase
+    'base_multiplier': 0.03,
+    'max_uplift': 2.0,
     'channel_modifiers': {
-        'Marketplace': 1.20,   # High price sensitivity
-        'App': 1.05,           # Loyalty reduces sensitivity
-        'Web': 1.00            # Baseline
+        'Marketplace': 1.20,
+        'App': 1.05,
+        'Web': 1.00
     },
     'category_modifiers': {
-        'Electronics': 1.25,   # High elasticity
+        'Electronics': 1.25,
         'Fashion': 1.15,
         'Sports': 1.10,
         'Beauty': 1.05,
         'Home & Garden': 1.00,
-        'Grocery': 0.85        # Low elasticity (staples)
+        'Grocery': 0.85
     }
 }
 
 
 # =============================================================================
+# UI HELPER COMPONENTS
 # =============================================================================
-#                           DATA CLEANER MODULE
+
+def render_page_header():
+    """Render the main page header."""
+    st.markdown("""
+    <div class="page-header animate-fade-in">
+        <div class="page-title">🚀 UAE Promo Pulse Simulator</div>
+        <div class="page-subtitle">Data Rescue Dashboard + What-If Promotional Simulation</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_divider():
+    """Render a styled divider."""
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+
+def render_subtle_divider():
+    """Render a subtle divider."""
+    st.markdown('<div class="divider-subtle"></div>', unsafe_allow_html=True)
+
+
+def render_section_header(icon, title, subtitle=None):
+    """Render a section header."""
+    subtitle_html = f'<div class="section-subtitle">{subtitle}</div>' if subtitle else ''
+    st.markdown(f"""
+    <div class="section-header">
+        <span class="section-icon">{icon}</span>
+        <div>
+            <div class="section-title">{title}</div>
+            {subtitle_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_kpi_card(icon, value, label, delta=None, delta_type="neutral", card_type="primary"):
+    """
+    Render a styled KPI card.
+    
+    Args:
+        icon: Emoji or icon
+        value: Main value to display
+        label: Label text
+        delta: Delta value (optional)
+        delta_type: 'positive', 'negative', or 'neutral'
+        card_type: 'primary', 'success', 'warning', or 'danger'
+    """
+    delta_class = f"kpi-delta-{delta_type}"
+    delta_symbol = "▲" if delta_type == "positive" else "▼" if delta_type == "negative" else "●"
+    delta_html = f'<div class="kpi-delta {delta_class}">{delta_symbol} {delta}</div>' if delta else ''
+    
+    return f"""
+    <div class="kpi-card kpi-card-{card_type}">
+        <div class="kpi-icon">{icon}</div>
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        {delta_html}
+    </div>
+    """
+
+
+def render_kpi_row(kpis):
+    """Render a row of KPI cards."""
+    cols = st.columns(len(kpis))
+    for col, kpi in zip(cols, kpis):
+        with col:
+            st.markdown(render_kpi_card(**kpi), unsafe_allow_html=True)
+
+
+def render_insight_box(icon, title, content, box_type="primary"):
+    """Render an insight box."""
+    st.markdown(f"""
+    <div class="insight-box insight-box-{box_type}">
+        <div class="insight-header">
+            <span class="insight-icon">{icon}</span>
+            <div class="insight-title insight-title-{box_type}">{title}</div>
+        </div>
+        <p class="insight-text">{content}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_status_box(label, value, status_type="primary"):
+    """Render a status box."""
+    st.markdown(f"""
+    <div class="status-box status-box-{status_type}">
+        <div class="status-label">{label}</div>
+        <div class="status-value status-value-{status_type}">{value}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_constraint_card(icon, label, status, is_pass):
+    """Render a constraint status card."""
+    status_class = "constraint-pass" if is_pass else "constraint-fail"
+    st.markdown(f"""
+    <div class="constraint-card">
+        <span class="constraint-icon">{icon}</span>
+        <div class="constraint-content">
+            <div class="constraint-label">{label}</div>
+            <div class="constraint-status {status_class}">{status}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_recommendation_box(recommendations):
+    """Render the AI recommendation box."""
+    items_html = ""
+    for rec in recommendations:
+        item_type = rec.get('type', 'primary')
+        items_html += f"""
+        <div class="recommendation-item recommendation-item-{item_type}">
+            <span>{rec['icon']}</span>
+            <span>{rec['text']}</span>
+        </div>
+        """
+    
+    st.markdown(f"""
+    <div class="recommendation-box">
+        <div class="recommendation-header">
+            <span class="recommendation-icon">🤖</span>
+            <div class="recommendation-title">AI-Powered Recommendations</div>
+        </div>
+        <div class="recommendation-content">
+            {items_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_footer():
+    """Render the page footer."""
+    st.markdown("""
+    <div class="footer">
+        <span class="footer-brand">UAE Promo Pulse Simulator</span> | 
+        Data Rescue Dashboard | Built with Streamlit + Plotly
+        <br>© 2024 Data Rescue Team
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # =============================================================================
+# PLOTLY CHART THEME
+# =============================================================================
+
+def get_chart_layout(title="", height=400):
+    """Returns consistent Plotly layout for dark theme."""
+    return dict(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#e8e8e8', family='Inter'),
+        title=dict(
+            text=title,
+            font=dict(color='#ffffff', size=16, family='Inter'),
+            x=0,
+            xanchor='left'
+        ),
+        xaxis=dict(
+            gridcolor='rgba(58,134,255,0.1)',
+            linecolor='#2a4a7f',
+            tickfont=dict(color='#8facc4', size=11),
+            title_font=dict(color='#8facc4', size=12)
+        ),
+        yaxis=dict(
+            gridcolor='rgba(58,134,255,0.1)',
+            linecolor='#2a4a7f',
+            tickfont=dict(color='#8facc4', size=11),
+            title_font=dict(color='#8facc4', size=12)
+        ),
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e8e8e8', size=11),
+            bordercolor='#2a4a7f'
+        ),
+        margin=dict(l=20, r=20, t=60, b=20),
+        height=height,
+        hoverlabel=dict(
+            bgcolor='#1a2d47',
+            font_size=12,
+            font_family='Inter',
+            bordercolor='#3a86ff'
+        )
+    )
+
+
+def style_plotly_chart(fig, title="", height=400):
+    """Apply consistent styling to a Plotly figure."""
+    fig.update_layout(**get_chart_layout(title, height))
+    return fig
+
+
+# =============================================================================
+# DATA CLEANER MODULE
 # =============================================================================
 
 class DataCleaner:
-    """
-    Data Rescue Toolkit: Validates and cleans dirty datasets.
-    
-    Handles:
-        - Products table
-        - Stores table
-        - Sales_raw table
-        - Inventory_snapshot table
-    
-    Produces:
-        - Cleaned dataframes
-        - Issues log (issues.csv)
-    """
+    """Data Rescue Toolkit: Validates and cleans dirty datasets."""
     
     def __init__(self):
-        """Initialize the DataCleaner with empty issues log."""
         self.issues_log = []
         self.cleaning_stats = {}
     
     def log_issue(self, table_name, record_id, issue_type, issue_detail, action_taken):
-        """
-        Log a data quality issue.
-        
-        Args:
-            table_name: Source table name
-            record_id: Identifier of the affected record
-            issue_type: Category of issue (e.g., MISSING_VALUE, DUPLICATE, OUTLIER)
-            issue_detail: Description of the issue
-            action_taken: How the issue was resolved
-        """
         self.issues_log.append({
             'table_name': table_name,
             'record_id': str(record_id),
@@ -131,42 +1089,20 @@ class DataCleaner:
         })
     
     def get_issues_dataframe(self):
-        """Return issues log as DataFrame."""
         if self.issues_log:
             return pd.DataFrame(self.issues_log)
         return pd.DataFrame(columns=['table_name', 'record_id', 'issue_type', 
                                       'issue_detail', 'action_taken', 'timestamp'])
     
-    # =========================================================================
-    # PRODUCTS CLEANING
-    # =========================================================================
     def clean_products(self, df):
-        """
-        Clean products table.
-        
-        Validation Rules:
-            - product_id must be unique and non-null
-            - category must be in valid list
-            - base_price_aed must be positive
-            - unit_cost_aed must be positive and <= base_price
-            - tax_rate must be between 0 and 1
-            - launch_flag must be New or Regular
-        
-        Cleaning Actions:
-            - Missing unit_cost: Impute as 50% of base_price (median margin assumption)
-            - Invalid category: Set to 'Other' or drop
-            - Invalid prices: Drop record
-        """
         if df is None or df.empty:
             return df
         
         df = df.copy()
         original_count = len(df)
-        
-        # Track cleaning stats
         stats = {'original': original_count, 'issues_found': 0}
         
-        # 1. Handle missing unit_cost_aed
+        # Handle missing unit_cost_aed
         missing_cost_mask = df['unit_cost_aed'].isna()
         missing_cost_count = missing_cost_mask.sum()
         
@@ -174,7 +1110,7 @@ class DataCleaner:
             for idx in df[missing_cost_mask].index:
                 product_id = df.loc[idx, 'product_id']
                 base_price = df.loc[idx, 'base_price_aed']
-                imputed_cost = round(base_price * 0.5, 2)  # 50% of base price
+                imputed_cost = round(base_price * 0.5, 2)
                 df.loc[idx, 'unit_cost_aed'] = imputed_cost
                 
                 self.log_issue(
@@ -186,7 +1122,7 @@ class DataCleaner:
                 )
             stats['issues_found'] += missing_cost_count
         
-        # 2. Validate unit_cost <= base_price
+        # Validate unit_cost <= base_price
         invalid_cost_mask = df['unit_cost_aed'] > df['base_price_aed']
         invalid_cost_count = invalid_cost_mask.sum()
         
@@ -207,7 +1143,7 @@ class DataCleaner:
                 )
             stats['issues_found'] += invalid_cost_count
         
-        # 3. Validate category
+        # Validate category
         if 'category' in df.columns:
             invalid_category_mask = ~df['category'].isin(VALID_CATEGORIES)
             invalid_category_count = invalid_category_mask.sum()
@@ -227,14 +1163,14 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_category_count
         
-        # 4. Validate tax_rate (should be 0-1, typically 0.05 for UAE VAT)
+        # Validate tax_rate
         if 'tax_rate' in df.columns:
             invalid_tax_mask = (df['tax_rate'] < 0) | (df['tax_rate'] > 1)
             if invalid_tax_mask.sum() > 0:
                 for idx in df[invalid_tax_mask].index:
                     product_id = df.loc[idx, 'product_id']
                     old_tax = df.loc[idx, 'tax_rate']
-                    df.loc[idx, 'tax_rate'] = 0.05  # UAE VAT
+                    df.loc[idx, 'tax_rate'] = 0.05
                     
                     self.log_issue(
                         table_name='products',
@@ -245,7 +1181,7 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_tax_mask.sum()
         
-        # 5. Validate launch_flag
+        # Validate launch_flag
         if 'launch_flag' in df.columns:
             invalid_flag_mask = ~df['launch_flag'].isin(VALID_LAUNCH_FLAGS)
             if invalid_flag_mask.sum() > 0:
@@ -269,23 +1205,7 @@ class DataCleaner:
         
         return df
     
-    # =========================================================================
-    # STORES CLEANING
-    # =========================================================================
     def clean_stores(self, df):
-        """
-        Clean stores table.
-        
-        Validation Rules:
-            - store_id must be unique and non-null
-            - city must be standardized to valid values
-            - channel must be in valid list
-            - fulfillment_type must be Own or 3PL
-        
-        Cleaning Actions:
-            - Inconsistent city names: Standardize using mapping
-            - Invalid channel: Drop record
-        """
         if df is None or df.empty:
             return df
         
@@ -293,13 +1213,12 @@ class DataCleaner:
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
         
-        # 1. Standardize city names
+        # Standardize city names
         if 'city' in df.columns:
             for idx in df.index:
                 city_value = df.loc[idx, 'city']
                 store_id = df.loc[idx, 'store_id']
                 
-                # Check if needs standardization
                 if city_value not in VALID_CITIES:
                     if city_value in CITY_MAPPING:
                         standardized = CITY_MAPPING[city_value]
@@ -314,7 +1233,6 @@ class DataCleaner:
                         )
                         stats['issues_found'] += 1
                     else:
-                        # Unknown city - try to match
                         city_lower = str(city_value).lower().strip()
                         matched = False
                         for valid_city in VALID_CITIES:
@@ -332,7 +1250,7 @@ class DataCleaner:
                                 break
                         
                         if not matched:
-                            df.loc[idx, 'city'] = 'Dubai'  # Default
+                            df.loc[idx, 'city'] = 'Dubai'
                             self.log_issue(
                                 table_name='stores',
                                 record_id=store_id,
@@ -342,14 +1260,14 @@ class DataCleaner:
                             )
                             stats['issues_found'] += 1
         
-        # 2. Validate channel
+        # Validate channel
         if 'channel' in df.columns:
             invalid_channel_mask = ~df['channel'].isin(VALID_CHANNELS)
             if invalid_channel_mask.sum() > 0:
                 for idx in df[invalid_channel_mask].index:
                     store_id = df.loc[idx, 'store_id']
                     old_channel = df.loc[idx, 'channel']
-                    df.loc[idx, 'channel'] = 'Web'  # Default
+                    df.loc[idx, 'channel'] = 'Web'
                     
                     self.log_issue(
                         table_name='stores',
@@ -360,14 +1278,14 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_channel_mask.sum()
         
-        # 3. Validate fulfillment_type
+        # Validate fulfillment_type
         if 'fulfillment_type' in df.columns:
             invalid_fulfill_mask = ~df['fulfillment_type'].isin(VALID_FULFILLMENT_TYPES)
             if invalid_fulfill_mask.sum() > 0:
                 for idx in df[invalid_fulfill_mask].index:
                     store_id = df.loc[idx, 'store_id']
                     old_fulfill = df.loc[idx, 'fulfillment_type']
-                    df.loc[idx, 'fulfillment_type'] = 'Own'  # Default
+                    df.loc[idx, 'fulfillment_type'] = 'Own'
                     
                     self.log_issue(
                         table_name='stores',
@@ -384,29 +1302,7 @@ class DataCleaner:
         
         return df
     
-    # =========================================================================
-    # SALES CLEANING
-    # =========================================================================
     def clean_sales(self, df, products_df=None):
-        """
-        Clean sales_raw table.
-        
-        Validation Rules:
-            - order_id should be unique (handle duplicates)
-            - order_time must be parseable datetime
-            - product_id must exist in products table
-            - store_id must exist in stores table
-            - qty must be positive and reasonable
-            - selling_price_aed must be positive
-            - discount_pct must be 0-100
-            - payment_status must be in valid list
-        
-        Cleaning Actions:
-            - Duplicates: Keep first occurrence (by order_time if valid)
-            - Missing discount_pct: Impute with median by category or 0
-            - Corrupted timestamps: Drop record
-            - Outliers: Cap qty at threshold, flag extreme prices
-        """
         if df is None or df.empty:
             return df
         
@@ -414,7 +1310,7 @@ class DataCleaner:
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
         
-        # 1. Parse and validate timestamps
+        # Parse and validate timestamps
         if 'order_time' in df.columns:
             df['order_time_parsed'] = pd.to_datetime(df['order_time'], errors='coerce')
             
@@ -435,14 +1331,12 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_time_count
                 
-                # Drop records with invalid timestamps
                 df = df[~invalid_time_mask].copy()
             
-            # Replace original column with parsed version
             df['order_time'] = df['order_time_parsed']
             df = df.drop(columns=['order_time_parsed'])
         
-        # 2. Handle duplicates (keep first by order_time)
+        # Handle duplicates
         if 'order_id' in df.columns:
             duplicate_mask = df.duplicated(subset=['order_id'], keep='first')
             duplicate_count = duplicate_mask.sum()
@@ -460,16 +1354,14 @@ class DataCleaner:
                     )
                 stats['issues_found'] += duplicate_count
                 
-                # Remove duplicates
                 df = df[~duplicate_mask].copy()
         
-        # 3. Handle missing discount_pct
+        # Handle missing discount_pct
         if 'discount_pct' in df.columns:
             missing_discount_mask = df['discount_pct'].isna()
             missing_discount_count = missing_discount_mask.sum()
             
             if missing_discount_count > 0:
-                # Calculate median discount (or use 0)
                 median_discount = df['discount_pct'].median()
                 if pd.isna(median_discount):
                     median_discount = 0
@@ -487,9 +1379,8 @@ class DataCleaner:
                     )
                 stats['issues_found'] += missing_discount_count
         
-        # 4. Handle qty outliers
+        # Handle qty outliers
         if 'qty' in df.columns:
-            # Cap extreme quantities
             outlier_qty_mask = df['qty'] > QTY_MAX_THRESHOLD
             outlier_qty_count = outlier_qty_mask.sum()
             
@@ -508,7 +1399,6 @@ class DataCleaner:
                     )
                 stats['issues_found'] += outlier_qty_count
             
-            # Handle negative or zero qty
             invalid_qty_mask = df['qty'] <= 0
             if invalid_qty_mask.sum() > 0:
                 for idx in df[invalid_qty_mask].index:
@@ -525,7 +1415,7 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_qty_mask.sum()
         
-        # 5. Handle price outliers (prices more than 5x median)
+        # Handle price outliers
         if 'selling_price_aed' in df.columns:
             median_price = df['selling_price_aed'].median()
             if median_price > 0:
@@ -548,14 +1438,14 @@ class DataCleaner:
                         )
                     stats['issues_found'] += outlier_price_count
         
-        # 6. Validate payment_status
+        # Validate payment_status
         if 'payment_status' in df.columns:
             invalid_status_mask = ~df['payment_status'].isin(VALID_PAYMENT_STATUSES)
             if invalid_status_mask.sum() > 0:
                 for idx in df[invalid_status_mask].index:
                     order_id = df.loc[idx, 'order_id']
                     old_status = df.loc[idx, 'payment_status']
-                    df.loc[idx, 'payment_status'] = 'Paid'  # Default assumption
+                    df.loc[idx, 'payment_status'] = 'Paid'
                     
                     self.log_issue(
                         table_name='sales_raw',
@@ -566,7 +1456,7 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_status_mask.sum()
         
-        # 7. Validate return_flag (should be 0 or 1)
+        # Validate return_flag
         if 'return_flag' in df.columns:
             df['return_flag'] = pd.to_numeric(df['return_flag'], errors='coerce').fillna(0).astype(int)
             df.loc[~df['return_flag'].isin([0, 1]), 'return_flag'] = 0
@@ -577,25 +1467,7 @@ class DataCleaner:
         
         return df
     
-    # =========================================================================
-    # INVENTORY CLEANING
-    # =========================================================================
     def clean_inventory(self, df):
-        """
-        Clean inventory_snapshot table.
-        
-        Validation Rules:
-            - snapshot_date must be valid date
-            - product_id and store_id must not be null
-            - stock_on_hand must be non-negative
-            - reorder_point must be non-negative
-            - lead_time_days must be positive
-        
-        Cleaning Actions:
-            - Negative stock: Set to 0
-            - Extreme stock (>9000): Cap at 99th percentile
-            - Invalid dates: Drop record
-        """
         if df is None or df.empty:
             return df
         
@@ -603,7 +1475,7 @@ class DataCleaner:
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
         
-        # 1. Handle negative stock_on_hand
+        # Handle negative stock_on_hand
         if 'stock_on_hand' in df.columns:
             negative_stock_mask = df['stock_on_hand'] < 0
             negative_stock_count = negative_stock_mask.sum()
@@ -623,13 +1495,12 @@ class DataCleaner:
                     )
                 stats['issues_found'] += negative_stock_count
             
-            # Handle extreme stock values (>9000)
+            # Handle extreme stock values
             extreme_threshold = 9000
             extreme_stock_mask = df['stock_on_hand'] > extreme_threshold
             extreme_stock_count = extreme_stock_mask.sum()
             
             if extreme_stock_count > 0:
-                # Calculate reasonable cap (99th percentile of non-extreme values)
                 reasonable_stocks = df[df['stock_on_hand'] <= extreme_threshold]['stock_on_hand']
                 if len(reasonable_stocks) > 0:
                     stock_cap = reasonable_stocks.quantile(0.99)
@@ -650,7 +1521,7 @@ class DataCleaner:
                     )
                 stats['issues_found'] += extreme_stock_count
         
-        # 2. Handle negative reorder_point
+        # Handle negative reorder_point
         if 'reorder_point' in df.columns:
             negative_reorder_mask = df['reorder_point'] < 0
             if negative_reorder_mask.sum() > 0:
@@ -668,14 +1539,14 @@ class DataCleaner:
                     )
                 stats['issues_found'] += negative_reorder_mask.sum()
         
-        # 3. Validate lead_time_days
+        # Validate lead_time_days
         if 'lead_time_days' in df.columns:
             invalid_lead_mask = (df['lead_time_days'] <= 0) | (df['lead_time_days'] > 90)
             if invalid_lead_mask.sum() > 0:
                 for idx in df[invalid_lead_mask].index:
                     record_id = f"{df.loc[idx, 'product_id']}_{df.loc[idx, 'store_id']}"
                     old_val = df.loc[idx, 'lead_time_days']
-                    df.loc[idx, 'lead_time_days'] = 7  # Default 1 week
+                    df.loc[idx, 'lead_time_days'] = 7
                     
                     self.log_issue(
                         table_name='inventory_snapshot',
@@ -686,7 +1557,7 @@ class DataCleaner:
                     )
                 stats['issues_found'] += invalid_lead_mask.sum()
         
-        # 4. Parse snapshot_date
+        # Parse snapshot_date
         if 'snapshot_date' in df.columns:
             df['snapshot_date'] = pd.to_datetime(df['snapshot_date'], errors='coerce')
             invalid_date_mask = df['snapshot_date'].isna()
@@ -700,17 +1571,8 @@ class DataCleaner:
         
         return df
     
-    # =========================================================================
-    # FULL CLEANING PIPELINE
-    # =========================================================================
     def run_full_pipeline(self, products_df=None, stores_df=None, 
                           sales_df=None, inventory_df=None):
-        """
-        Run complete cleaning pipeline on all tables.
-        
-        Returns:
-            dict: Dictionary of cleaned dataframes
-        """
         cleaned = {}
         
         if products_df is not None:
@@ -729,43 +1591,17 @@ class DataCleaner:
 
 
 # =============================================================================
-# =============================================================================
-#                           SIMULATOR MODULE
-# =============================================================================
+# KPI CALCULATOR MODULE
 # =============================================================================
 
 class KPICalculator:
-    """
-    Computes KPIs from cleaned sales data.
-    
-    Finance/Executive KPIs:
-        1. Gross Revenue (Paid only)
-        2. Refund Amount
-        3. Net Revenue
-        4. COGS
-        5. Gross Margin (AED)
-        6. Gross Margin %
-        7. Average Discount %
-    
-    Ops/Manager KPIs:
-        8. Return Rate %
-        9. Payment Failure Rate %
-    """
+    """Computes KPIs from cleaned sales data."""
     
     def __init__(self, sales_df, products_df=None, stores_df=None):
-        """
-        Initialize KPI Calculator.
-        
-        Args:
-            sales_df: Cleaned sales dataframe
-            products_df: Cleaned products dataframe (for COGS calculation)
-            stores_df: Cleaned stores dataframe (for grouping)
-        """
         self.sales = sales_df.copy() if sales_df is not None else pd.DataFrame()
         self.products = products_df.copy() if products_df is not None else pd.DataFrame()
         self.stores = stores_df.copy() if stores_df is not None else pd.DataFrame()
         
-        # Merge data for calculations
         if not self.sales.empty and not self.products.empty:
             self.sales_merged = self.sales.merge(
                 self.products[['product_id', 'unit_cost_aed', 'category', 'base_price_aed']],
@@ -783,7 +1619,6 @@ class KPICalculator:
             )
     
     def calc_gross_revenue(self, df=None):
-        """Calculate Gross Revenue (Paid orders only)."""
         data = df if df is not None else self.sales_merged
         if data.empty:
             return 0
@@ -791,7 +1626,6 @@ class KPICalculator:
         return (paid_sales['qty'] * paid_sales['selling_price_aed']).sum()
     
     def calc_refund_amount(self, df=None):
-        """Calculate Refund Amount."""
         data = df if df is not None else self.sales_merged
         if data.empty:
             return 0
@@ -799,11 +1633,9 @@ class KPICalculator:
         return (refunded['qty'] * refunded['selling_price_aed']).sum()
     
     def calc_net_revenue(self, df=None):
-        """Calculate Net Revenue = Gross Revenue - Refunds."""
         return self.calc_gross_revenue(df) - self.calc_refund_amount(df)
     
     def calc_cogs(self, df=None):
-        """Calculate Cost of Goods Sold."""
         data = df if df is not None else self.sales_merged
         if data.empty or 'unit_cost_aed' not in data.columns:
             return 0
@@ -811,25 +1643,21 @@ class KPICalculator:
         return (paid_sales['qty'] * paid_sales['unit_cost_aed']).sum()
     
     def calc_gross_margin_aed(self, df=None):
-        """Calculate Gross Margin in AED."""
         return self.calc_net_revenue(df) - self.calc_cogs(df)
     
     def calc_gross_margin_pct(self, df=None):
-        """Calculate Gross Margin Percentage."""
         net_rev = self.calc_net_revenue(df)
         if net_rev == 0:
             return 0
         return (self.calc_gross_margin_aed(df) / net_rev) * 100
     
     def calc_avg_discount_pct(self, df=None):
-        """Calculate Average Discount Percentage."""
         data = df if df is not None else self.sales_merged
         if data.empty or 'discount_pct' not in data.columns:
             return 0
         return data['discount_pct'].mean()
     
     def calc_return_rate(self, df=None):
-        """Calculate Return Rate % (returns among paid orders)."""
         data = df if df is not None else self.sales_merged
         if data.empty:
             return 0
@@ -841,7 +1669,6 @@ class KPICalculator:
         return (paid_orders['return_flag'].sum() / len(paid_orders)) * 100
     
     def calc_payment_failure_rate(self, df=None):
-        """Calculate Payment Failure Rate %."""
         data = df if df is not None else self.sales_merged
         if data.empty:
             return 0
@@ -849,19 +1676,16 @@ class KPICalculator:
         return (len(failed) / len(data)) * 100
     
     def calc_total_orders(self, df=None):
-        """Calculate total number of orders."""
         data = df if df is not None else self.sales_merged
         return len(data)
     
     def calc_total_units(self, df=None):
-        """Calculate total units sold."""
         data = df if df is not None else self.sales_merged
         if data.empty:
             return 0
         return data['qty'].sum()
     
     def compute_all_kpis(self, df=None):
-        """Compute all KPIs and return as dictionary."""
         return {
             'gross_revenue': self.calc_gross_revenue(df),
             'refund_amount': self.calc_refund_amount(df),
@@ -877,7 +1701,6 @@ class KPICalculator:
         }
     
     def get_kpis_by_dimension(self, dimension='city'):
-        """Get KPIs grouped by a dimension (city, channel, category)."""
         if self.sales_merged.empty or dimension not in self.sales_merged.columns:
             return pd.DataFrame()
         
@@ -891,51 +1714,31 @@ class KPICalculator:
         return pd.DataFrame(results)
 
 
+# =============================================================================
+# PROMO SIMULATOR MODULE
+# =============================================================================
+
 class PromoSimulator:
-    """
-    What-If Promo Simulation Engine.
-    
-    Computes:
-        - Baseline demand from historical data
-        - Simulated demand with uplift
-        - Promo spend
-        - Profit proxy
-        - Stockout risk
-        - Constraint violations
-    """
+    """What-If Promo Simulation Engine."""
     
     def __init__(self, sales_df, products_df, stores_df, inventory_df):
-        """
-        Initialize Promo Simulator.
-        
-        Args:
-            sales_df: Cleaned sales dataframe
-            products_df: Cleaned products dataframe
-            stores_df: Cleaned stores dataframe
-            inventory_df: Cleaned inventory dataframe
-        """
         self.sales = sales_df.copy() if sales_df is not None else pd.DataFrame()
         self.products = products_df.copy() if products_df is not None else pd.DataFrame()
         self.stores = stores_df.copy() if stores_df is not None else pd.DataFrame()
         self.inventory = inventory_df.copy() if inventory_df is not None else pd.DataFrame()
-        
-        # Merge products with stores info for simulation
         self._prepare_data()
     
     def _prepare_data(self):
-        """Prepare merged data for simulation."""
         if self.sales.empty:
             self.sales_merged = pd.DataFrame()
             return
         
-        # Merge sales with products
         self.sales_merged = self.sales.merge(
             self.products[['product_id', 'unit_cost_aed', 'category', 'base_price_aed']],
             on='product_id',
             how='left'
         )
         
-        # Merge with stores
         if not self.stores.empty:
             self.sales_merged = self.sales_merged.merge(
                 self.stores[['store_id', 'city', 'channel']],
@@ -944,41 +1747,25 @@ class PromoSimulator:
             )
     
     def calculate_baseline_demand(self, lookback_days=30):
-        """
-        Calculate baseline daily demand per product-store.
-        
-        Uses last N days of sales to compute average daily demand.
-        
-        Args:
-            lookback_days: Number of days to look back
-        
-        Returns:
-            DataFrame with product_id, store_id, baseline_daily_demand
-        """
         if self.sales_merged.empty:
             return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
         
-        # Filter to paid orders only
         paid_sales = self.sales_merged[self.sales_merged['payment_status'] == 'Paid'].copy()
         
         if paid_sales.empty:
             return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
         
-        # Ensure order_time is datetime
         if not pd.api.types.is_datetime64_any_dtype(paid_sales['order_time']):
             paid_sales['order_time'] = pd.to_datetime(paid_sales['order_time'], errors='coerce')
         
-        # Filter to lookback period
         max_date = paid_sales['order_time'].max()
         min_date = max_date - timedelta(days=lookback_days)
         recent_sales = paid_sales[paid_sales['order_time'] >= min_date]
         
         if recent_sales.empty:
-            # Use all available data if no recent data
             recent_sales = paid_sales
             lookback_days = max(1, (paid_sales['order_time'].max() - paid_sales['order_time'].min()).days)
         
-        # Group by product-store and calculate daily average
         baseline = recent_sales.groupby(['product_id', 'store_id']).agg({
             'qty': 'sum'
         }).reset_index()
@@ -989,31 +1776,10 @@ class PromoSimulator:
         return baseline
     
     def calculate_uplift_factor(self, discount_pct, channel='Web', category='Other'):
-        """
-        Calculate demand uplift factor based on discount and modifiers.
-        
-        Formula (documented assumption):
-            base_uplift = 1 + (discount_pct × 0.03), capped at 2.0
-            channel_modifier = varies by channel (Marketplace highest)
-            category_modifier = varies by category (Electronics highest)
-            final_uplift = base_uplift × channel_mod × category_mod
-        
-        Args:
-            discount_pct: Discount percentage (0-100)
-            channel: Sales channel
-            category: Product category
-        
-        Returns:
-            float: Demand multiplier
-        """
-        # Base uplift: 3% demand increase per 1% discount
         base_uplift = 1 + (discount_pct * UPLIFT_CONFIG['base_multiplier'])
         base_uplift = min(base_uplift, UPLIFT_CONFIG['max_uplift'])
         
-        # Channel modifier
         channel_mod = UPLIFT_CONFIG['channel_modifiers'].get(channel, 1.0)
-        
-        # Category modifier
         category_mod = UPLIFT_CONFIG['category_modifiers'].get(category, 1.0)
         
         return base_uplift * channel_mod * category_mod
@@ -1021,21 +1787,6 @@ class PromoSimulator:
     def run_simulation(self, discount_pct, promo_budget_aed, margin_floor_pct,
                        simulation_days=14, city_filter='All', channel_filter='All',
                        category_filter='All'):
-        """
-        Run what-if promo simulation.
-        
-        Args:
-            discount_pct: Discount percentage to apply
-            promo_budget_aed: Maximum promo spend budget
-            margin_floor_pct: Minimum gross margin percentage
-            simulation_days: Number of days to simulate
-            city_filter: Filter by city (or 'All')
-            channel_filter: Filter by channel (or 'All')
-            category_filter: Filter by category (or 'All')
-        
-        Returns:
-            dict: Simulation results including KPIs and violations
-        """
         results = {
             'parameters': {
                 'discount_pct': discount_pct,
@@ -1052,7 +1803,6 @@ class PromoSimulator:
             'details': pd.DataFrame()
         }
         
-        # Get baseline demand
         baseline = self.calculate_baseline_demand()
         
         if baseline.empty:
@@ -1066,14 +1816,12 @@ class PromoSimulator:
             }
             return results
         
-        # Merge baseline with product info
         sim_data = baseline.merge(
             self.products[['product_id', 'base_price_aed', 'unit_cost_aed', 'category']],
             on='product_id',
             how='left'
         )
         
-        # Merge with store info
         if not self.stores.empty:
             sim_data = sim_data.merge(
                 self.stores[['store_id', 'city', 'channel']],
@@ -1081,7 +1829,6 @@ class PromoSimulator:
                 how='left'
             )
         
-        # Apply filters
         if city_filter != 'All' and 'city' in sim_data.columns:
             sim_data = sim_data[sim_data['city'] == city_filter]
         
@@ -1102,7 +1849,6 @@ class PromoSimulator:
             }
             return results
         
-        # Calculate uplift for each row
         sim_data['uplift_factor'] = sim_data.apply(
             lambda row: self.calculate_uplift_factor(
                 discount_pct,
@@ -1112,11 +1858,9 @@ class PromoSimulator:
             axis=1
         )
         
-        # Calculate simulated demand
         sim_data['simulated_daily_demand'] = sim_data['baseline_daily_demand'] * sim_data['uplift_factor']
         sim_data['simulated_total_demand'] = sim_data['simulated_daily_demand'] * simulation_days
         
-        # Get latest inventory snapshot
         if not self.inventory.empty:
             latest_inventory = self.inventory.sort_values('snapshot_date').groupby(
                 ['product_id', 'store_id']
@@ -1129,27 +1873,22 @@ class PromoSimulator:
             )
             sim_data['stock_on_hand'] = sim_data['stock_on_hand'].fillna(0)
         else:
-            sim_data['stock_on_hand'] = 1000  # Default if no inventory data
+            sim_data['stock_on_hand'] = 1000
         
-        # Apply stock constraint
         sim_data['constrained_demand'] = sim_data[['simulated_total_demand', 'stock_on_hand']].min(axis=1)
         sim_data['stockout_flag'] = (sim_data['simulated_total_demand'] > sim_data['stock_on_hand']).astype(int)
         
-        # Calculate selling price with discount
         sim_data['discounted_price'] = sim_data['base_price_aed'] * (1 - discount_pct / 100)
         
-        # Calculate financial metrics
         sim_data['simulated_revenue'] = sim_data['constrained_demand'] * sim_data['discounted_price']
         sim_data['simulated_cogs'] = sim_data['constrained_demand'] * sim_data['unit_cost_aed']
         sim_data['promo_discount_amount'] = sim_data['constrained_demand'] * sim_data['base_price_aed'] * (discount_pct / 100)
         
-        # Aggregate results
         total_simulated_revenue = sim_data['simulated_revenue'].sum()
         total_cogs = sim_data['simulated_cogs'].sum()
         total_promo_spend = sim_data['promo_discount_amount'].sum()
         total_units = sim_data['constrained_demand'].sum()
         
-        # Calculate KPIs
         gross_margin_aed = total_simulated_revenue - total_cogs
         gross_margin_pct = (gross_margin_aed / total_simulated_revenue * 100) if total_simulated_revenue > 0 else 0
         profit_proxy = gross_margin_aed - total_promo_spend
@@ -1169,10 +1908,8 @@ class PromoSimulator:
             'products_at_risk': sim_data['stockout_flag'].sum()
         }
         
-        # Check constraints and violations
         violations = []
         
-        # Budget constraint
         if total_promo_spend > promo_budget_aed:
             violations.append({
                 'constraint': 'BUDGET',
@@ -1181,7 +1918,6 @@ class PromoSimulator:
                 'message': f'Promo spend (AED {total_promo_spend:,.0f}) exceeds budget (AED {promo_budget_aed:,.0f})'
             })
         
-        # Margin floor constraint
         if gross_margin_pct < margin_floor_pct:
             violations.append({
                 'constraint': 'MARGIN_FLOOR',
@@ -1197,7 +1933,6 @@ class PromoSimulator:
             'all_ok': len(violations) == 0
         }
         
-        # Get top stockout risk items
         stockout_items = sim_data[sim_data['stockout_flag'] == 1].nlargest(
             10, 'simulated_total_demand'
         )[['product_id', 'store_id', 'simulated_total_demand', 'stock_on_hand', 'category']].copy()
@@ -1209,18 +1944,6 @@ class PromoSimulator:
         return results
     
     def get_scenario_comparison(self, discount_scenarios, promo_budget, margin_floor, simulation_days=14):
-        """
-        Compare multiple discount scenarios.
-        
-        Args:
-            discount_scenarios: List of discount percentages to compare
-            promo_budget: Budget for all scenarios
-            margin_floor: Margin floor for all scenarios
-            simulation_days: Simulation window
-        
-        Returns:
-            DataFrame comparing scenarios
-        """
         comparisons = []
         
         for discount in discount_scenarios:
@@ -1245,17 +1968,292 @@ class PromoSimulator:
 
 
 # =============================================================================
+# CHART FUNCTIONS
 # =============================================================================
-#                           STREAMLIT DASHBOARD
-# =============================================================================
-# =============================================================================
+
+def create_revenue_trend_chart(sales_df):
+    """Create revenue trend chart."""
+    if sales_df.empty:
+        return None
+    
+    df = sales_df.copy()
+    
+    if not pd.api.types.is_datetime64_any_dtype(df['order_time']):
+        df['order_time'] = pd.to_datetime(df['order_time'], errors='coerce')
+    
+    df = df[df['payment_status'] == 'Paid']
+    df['revenue'] = df['qty'] * df['selling_price_aed']
+    df['date'] = df['order_time'].dt.date
+    
+    daily_revenue = df.groupby('date')['revenue'].sum().reset_index()
+    daily_revenue.columns = ['Date', 'Revenue']
+    
+    fig = px.area(
+        daily_revenue,
+        x='Date',
+        y='Revenue',
+        color_discrete_sequence=[COLORS['primary']]
+    )
+    
+    fig.update_traces(
+        fill='tozeroy',
+        fillcolor='rgba(58, 134, 255, 0.2)',
+        line=dict(color=COLORS['primary'], width=2)
+    )
+    
+    fig = style_plotly_chart(fig, '📈 Revenue Trend', height=350)
+    fig.update_layout(hovermode='x unified')
+    
+    return fig
+
+
+def create_revenue_by_dimension_chart(sales_df, dimension='city'):
+    """Create revenue by city/channel bar chart."""
+    if sales_df.empty or dimension not in sales_df.columns:
+        return None
+    
+    df = sales_df[sales_df['payment_status'] == 'Paid'].copy()
+    df['revenue'] = df['qty'] * df['selling_price_aed']
+    
+    grouped = df.groupby(dimension)['revenue'].sum().reset_index()
+    grouped.columns = [dimension.title(), 'Revenue']
+    grouped = grouped.sort_values('Revenue', ascending=True)
+    
+    fig = px.bar(
+        grouped,
+        x='Revenue',
+        y=dimension.title(),
+        orientation='h',
+        color='Revenue',
+        color_continuous_scale=[[0, COLORS['medium']], [0.5, COLORS['primary']], [1, COLORS['secondary']]]
+    )
+    
+    fig.update_traces(
+        marker_line_color=COLORS['primary'],
+        marker_line_width=1,
+        texttemplate='AED %{x:,.0f}',
+        textposition='outside'
+    )
+    
+    fig = style_plotly_chart(fig, f'💰 Revenue by {dimension.title()}', height=350)
+    fig.update_layout(coloraxis_showscale=False)
+    
+    return fig
+
+
+def create_margin_by_category_chart(sales_df, products_df):
+    """Create margin % by category chart."""
+    if sales_df.empty or products_df.empty:
+        return None
+    
+    df = sales_df.merge(
+        products_df[['product_id', 'unit_cost_aed', 'category']],
+        on='product_id',
+        how='left'
+    )
+    
+    df = df[df['payment_status'] == 'Paid']
+    df['revenue'] = df['qty'] * df['selling_price_aed']
+    df['cost'] = df['qty'] * df['unit_cost_aed']
+    
+    grouped = df.groupby('category').agg({
+        'revenue': 'sum',
+        'cost': 'sum'
+    }).reset_index()
+    
+    grouped['margin_pct'] = ((grouped['revenue'] - grouped['cost']) / grouped['revenue'] * 100).round(1)
+    grouped = grouped.sort_values('margin_pct', ascending=True)
+    
+    # Create color scale based on margin
+    colors = [COLORS['danger'] if x < 20 else COLORS['warning'] if x < 35 else COLORS['success'] 
+              for x in grouped['margin_pct']]
+    
+    fig = go.Figure(go.Bar(
+        x=grouped['margin_pct'],
+        y=grouped['category'],
+        orientation='h',
+        marker_color=colors,
+        text=[f'{x:.1f}%' for x in grouped['margin_pct']],
+        textposition='outside'
+    ))
+    
+    fig = style_plotly_chart(fig, '📊 Gross Margin by Category', height=350)
+    
+    return fig
+
+
+def create_scenario_impact_chart(scenario_df):
+    """Create scenario comparison chart."""
+    if scenario_df.empty:
+        return None
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    fig.add_trace(
+        go.Bar(
+            x=scenario_df['Discount %'],
+            y=scenario_df['Profit Proxy'],
+            name='Profit Proxy',
+            marker_color=COLORS['primary'],
+            marker_line_color=COLORS['secondary'],
+            marker_line_width=1
+        ),
+        secondary_y=False
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=scenario_df['Discount %'],
+            y=scenario_df['Margin %'],
+            name='Margin %',
+            mode='lines+markers',
+            line=dict(color=COLORS['success'], width=3),
+            marker=dict(size=10, color=COLORS['success'])
+        ),
+        secondary_y=True
+    )
+    
+    fig = style_plotly_chart(fig, '🎯 Scenario Impact Analysis', height=350)
+    fig.update_yaxes(title_text='Profit Proxy (AED)', secondary_y=False, gridcolor='rgba(58,134,255,0.1)')
+    fig.update_yaxes(title_text='Margin %', secondary_y=True, gridcolor='rgba(74,222,128,0.1)')
+    
+    return fig
+
+
+def create_stockout_risk_chart(sim_results):
+    """Create stockout risk by dimension chart."""
+    details = sim_results.get('details', pd.DataFrame())
+    
+    if details.empty:
+        return None
+    
+    if 'city' in details.columns:
+        risk_by_city = details.groupby('city').agg({
+            'stockout_flag': ['sum', 'count']
+        }).reset_index()
+        risk_by_city.columns = ['City', 'At Risk', 'Total']
+        risk_by_city['Risk %'] = (risk_by_city['At Risk'] / risk_by_city['Total'] * 100).round(1)
+        
+        colors = [COLORS['success'] if x < 20 else COLORS['warning'] if x < 40 else COLORS['danger'] 
+                  for x in risk_by_city['Risk %']]
+        
+        fig = go.Figure(go.Bar(
+            x=risk_by_city['City'],
+            y=risk_by_city['Risk %'],
+            marker_color=colors,
+            text=[f'{x:.1f}%' for x in risk_by_city['Risk %']],
+            textposition='outside'
+        ))
+        
+        fig = style_plotly_chart(fig, '⚠️ Stockout Risk by City', height=350)
+        
+        return fig
+    
+    return None
+
+
+def create_issues_pareto_chart(issues_df):
+    """Create Pareto chart of issue types."""
+    if issues_df.empty:
+        return None
+    
+    issue_counts = issues_df['issue_type'].value_counts().reset_index()
+    issue_counts.columns = ['Issue Type', 'Count']
+    issue_counts = issue_counts.sort_values('Count', ascending=False)
+    issue_counts['Cumulative %'] = (issue_counts['Count'].cumsum() / issue_counts['Count'].sum() * 100).round(1)
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    fig.add_trace(
+        go.Bar(
+            x=issue_counts['Issue Type'],
+            y=issue_counts['Count'],
+            name='Count',
+            marker_color=COLORS['danger'],
+            marker_line_color=COLORS['warning'],
+            marker_line_width=1
+        ),
+        secondary_y=False
+    )
+    
+    fig.add_trace(
+        go.Scatter(
+            x=issue_counts['Issue Type'],
+            y=issue_counts['Cumulative %'],
+            name='Cumulative %',
+            mode='lines+markers',
+            line=dict(color=COLORS['secondary'], width=3),
+            marker=dict(size=8, color=COLORS['secondary'])
+        ),
+        secondary_y=True
+    )
+    
+    fig = style_plotly_chart(fig, '🔍 Data Quality Issues (Pareto)', height=350)
+    fig.update_yaxes(title_text='Count', secondary_y=False)
+    fig.update_yaxes(title_text='Cumulative %', secondary_y=True, range=[0, 105])
+    
+    return fig
+
+
+def create_inventory_distribution_chart(inventory_df):
+    """Create inventory distribution chart."""
+    if inventory_df.empty:
+        return None
+    
+    latest = inventory_df.sort_values('snapshot_date').groupby(
+        ['product_id', 'store_id']
+    ).last().reset_index()
+    
+    fig = px.histogram(
+        latest,
+        x='stock_on_hand',
+        nbins=30,
+        color_discrete_sequence=[COLORS['primary']]
+    )
+    
+    fig.update_traces(
+        marker_line_color=COLORS['secondary'],
+        marker_line_width=1
+    )
+    
+    fig = style_plotly_chart(fig, '📦 Stock Distribution', height=350)
+    fig.update_layout(bargap=0.1)
+    
+    return fig
+
+
+def create_channel_performance_chart(sales_df):
+    """Create channel performance donut chart."""
+    if sales_df.empty or 'channel' not in sales_df.columns:
+        return None
+    
+    df = sales_df[sales_df['payment_status'] == 'Paid'].copy()
+    df['revenue'] = df['qty'] * df['selling_price_aed']
+    
+    channel_revenue = df.groupby('channel')['revenue'].sum().reset_index()
+    
+    fig = go.Figure(go.Pie(
+        labels=channel_revenue['channel'],
+        values=channel_revenue['revenue'],
+        hole=0.6,
+        marker=dict(colors=CHART_COLORS[:len(channel_revenue)]),
+        textinfo='label+percent',
+        textposition='outside',
+        textfont=dict(color='#e8e8e8')
+    ))
+    
+    fig = style_plotly_chart(fig, '📱 Revenue by Channel', height=350)
+    fig.update_layout(showlegend=False)
+    
+    return fig
+
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
 def load_data_from_upload(uploaded_file):
-    """Load data from uploaded file (CSV or Excel)."""
+    """Load data from uploaded file."""
     try:
         if uploaded_file.name.endswith('.csv'):
             return pd.read_csv(uploaded_file)
@@ -1270,18 +2268,8 @@ def load_data_from_upload(uploaded_file):
 
 
 def create_column_mapping_ui(df, table_name, expected_columns):
-    """
-    Create UI for mapping uploaded columns to expected schema.
-    
-    Args:
-        df: Uploaded dataframe
-        table_name: Name of the table being mapped
-        expected_columns: Dict of expected column names and descriptions
-    
-    Returns:
-        dict: Mapping of expected column to actual column
-    """
-    st.subheader(f"📋 Map Columns for {table_name}")
+    """Create UI for mapping uploaded columns to expected schema."""
+    st.markdown(f"**Map columns for {table_name}**")
     
     available_columns = ['-- Not Mapped --'] + list(df.columns)
     mapping = {}
@@ -1289,7 +2277,6 @@ def create_column_mapping_ui(df, table_name, expected_columns):
     cols = st.columns(2)
     for i, (expected_col, description) in enumerate(expected_columns.items()):
         with cols[i % 2]:
-            # Try to auto-detect matching column
             default_idx = 0
             for j, col in enumerate(available_columns):
                 if col.lower().replace(' ', '_').replace('-', '_') == expected_col.lower():
@@ -1325,6 +2312,10 @@ def convert_df_to_csv(df):
 
 def format_currency(value):
     """Format value as AED currency."""
+    if value >= 1000000:
+        return f"AED {value/1000000:.2f}M"
+    elif value >= 1000:
+        return f"AED {value/1000:.1f}K"
     return f"AED {value:,.0f}"
 
 
@@ -1333,279 +2324,77 @@ def format_percentage(value):
     return f"{value:.1f}%"
 
 
-def create_kpi_card(label, value, delta=None, delta_color="normal"):
-    """Create a KPI metric card."""
-    st.metric(label=label, value=value, delta=delta, delta_color=delta_color)
+def format_number(value):
+    """Format large numbers."""
+    if value >= 1000000:
+        return f"{value/1000000:.2f}M"
+    elif value >= 1000:
+        return f"{value/1000:.1f}K"
+    return f"{value:,.0f}"
 
 
-# =============================================================================
-# CHART FUNCTIONS
-# =============================================================================
-
-def create_revenue_trend_chart(sales_df):
-    """Create revenue trend chart (daily/weekly)."""
-    if sales_df.empty:
-        return None
-    
-    df = sales_df.copy()
-    
-    # Ensure datetime
-    if not pd.api.types.is_datetime64_any_dtype(df['order_time']):
-        df['order_time'] = pd.to_datetime(df['order_time'], errors='coerce')
-    
-    df = df[df['payment_status'] == 'Paid']
-    df['revenue'] = df['qty'] * df['selling_price_aed']
-    df['date'] = df['order_time'].dt.date
-    
-    daily_revenue = df.groupby('date')['revenue'].sum().reset_index()
-    daily_revenue.columns = ['Date', 'Revenue']
-    
-    fig = px.line(
-        daily_revenue,
-        x='Date',
-        y='Revenue',
-        title='📈 Net Revenue Trend (Daily)',
-        labels={'Revenue': 'Revenue (AED)'}
-    )
-    fig.update_layout(hovermode='x unified')
-    fig.update_traces(fill='tozeroy', fillcolor='rgba(0, 123, 255, 0.1)')
-    
-    return fig
-
-
-def create_revenue_by_dimension_chart(sales_df, dimension='city'):
-    """Create revenue by city/channel bar chart."""
-    if sales_df.empty or dimension not in sales_df.columns:
-        return None
-    
-    df = sales_df[sales_df['payment_status'] == 'Paid'].copy()
-    df['revenue'] = df['qty'] * df['selling_price_aed']
-    
-    grouped = df.groupby(dimension)['revenue'].sum().reset_index()
-    grouped.columns = [dimension.title(), 'Revenue']
-    
-    fig = px.bar(
-        grouped,
-        x=dimension.title(),
-        y='Revenue',
-        title=f'💰 Revenue by {dimension.title()}',
-        color=dimension.title(),
-        text_auto='.2s'
-    )
-    fig.update_traces(textposition='outside')
-    
-    return fig
-
-
-def create_margin_by_category_chart(sales_df, products_df):
-    """Create margin % by category chart."""
-    if sales_df.empty or products_df.empty:
-        return None
-    
-    df = sales_df.merge(
-        products_df[['product_id', 'unit_cost_aed', 'category']],
-        on='product_id',
-        how='left'
-    )
-    
-    df = df[df['payment_status'] == 'Paid']
-    df['revenue'] = df['qty'] * df['selling_price_aed']
-    df['cost'] = df['qty'] * df['unit_cost_aed']
-    
-    grouped = df.groupby('category').agg({
-        'revenue': 'sum',
-        'cost': 'sum'
-    }).reset_index()
-    
-    grouped['margin_pct'] = ((grouped['revenue'] - grouped['cost']) / grouped['revenue'] * 100).round(1)
-    
-    fig = px.bar(
-        grouped,
-        x='category',
-        y='margin_pct',
-        title='📊 Gross Margin % by Category',
-        color='margin_pct',
-        color_continuous_scale='RdYlGn',
-        text_auto='.1f'
-    )
-    fig.update_traces(texttemplate='%{text}%', textposition='outside')
-    fig.update_layout(coloraxis_showscale=False)
-    
-    return fig
-
-
-def create_scenario_impact_chart(scenario_df):
-    """Create scenario comparison chart."""
-    if scenario_df.empty:
-        return None
-    
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    fig.add_trace(
-        go.Bar(
-            x=scenario_df['Discount %'],
-            y=scenario_df['Profit Proxy'],
-            name='Profit Proxy',
-            marker_color='rgb(55, 83, 109)'
-        ),
-        secondary_y=False
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=scenario_df['Discount %'],
-            y=scenario_df['Margin %'],
-            name='Margin %',
-            mode='lines+markers',
-            marker_color='rgb(255, 127, 14)'
-        ),
-        secondary_y=True
-    )
-    
-    fig.update_layout(
-        title='🎯 Scenario Impact: Profit Proxy vs Discount',
-        xaxis_title='Discount %',
-        legend=dict(orientation='h', yanchor='bottom', y=1.02)
-    )
-    fig.update_yaxes(title_text='Profit Proxy (AED)', secondary_y=False)
-    fig.update_yaxes(title_text='Margin %', secondary_y=True)
-    
-    return fig
-
-
-def create_stockout_risk_chart(sim_results):
-    """Create stockout risk by dimension chart."""
-    details = sim_results.get('details', pd.DataFrame())
-    
-    if details.empty:
-        return None
-    
-    if 'city' in details.columns:
-        risk_by_city = details.groupby('city').agg({
-            'stockout_flag': ['sum', 'count']
-        }).reset_index()
-        risk_by_city.columns = ['City', 'At Risk', 'Total']
-        risk_by_city['Risk %'] = (risk_by_city['At Risk'] / risk_by_city['Total'] * 100).round(1)
-        
-        fig = px.bar(
-            risk_by_city,
-            x='City',
-            y='Risk %',
-            title='⚠️ Stockout Risk by City',
-            color='Risk %',
-            color_continuous_scale='Reds',
-            text_auto='.1f'
-        )
-        fig.update_traces(texttemplate='%{text}%', textposition='outside')
-        fig.update_layout(coloraxis_showscale=False)
-        
-        return fig
-    
-    return None
-
-
-def create_issues_pareto_chart(issues_df):
-    """Create Pareto chart of issue types."""
-    if issues_df.empty:
-        return None
-    
-    issue_counts = issues_df['issue_type'].value_counts().reset_index()
-    issue_counts.columns = ['Issue Type', 'Count']
-    issue_counts = issue_counts.sort_values('Count', ascending=False)
-    
-    # Calculate cumulative percentage
-    issue_counts['Cumulative %'] = (issue_counts['Count'].cumsum() / issue_counts['Count'].sum() * 100).round(1)
-    
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    fig.add_trace(
-        go.Bar(
-            x=issue_counts['Issue Type'],
-            y=issue_counts['Count'],
-            name='Count',
-            marker_color='indianred'
-        ),
-        secondary_y=False
-    )
-    
-    fig.add_trace(
-        go.Scatter(
-            x=issue_counts['Issue Type'],
-            y=issue_counts['Cumulative %'],
-            name='Cumulative %',
-            mode='lines+markers',
-            marker_color='navy'
-        ),
-        secondary_y=True
-    )
-    
-    fig.update_layout(
-        title='🔍 Data Quality Issues (Pareto)',
-        xaxis_title='Issue Type',
-        legend=dict(orientation='h', yanchor='bottom', y=1.02)
-    )
-    fig.update_yaxes(title_text='Count', secondary_y=False)
-    fig.update_yaxes(title_text='Cumulative %', secondary_y=True, range=[0, 105])
-    
-    return fig
-
-
-def create_inventory_distribution_chart(inventory_df):
-    """Create inventory distribution chart."""
-    if inventory_df.empty:
-        return None
-    
-    # Get latest snapshot per product-store
-    latest = inventory_df.sort_values('snapshot_date').groupby(
-        ['product_id', 'store_id']
-    ).last().reset_index()
-    
-    fig = px.histogram(
-        latest,
-        x='stock_on_hand',
-        nbins=50,
-        title='📦 Stock on Hand Distribution',
-        labels={'stock_on_hand': 'Stock on Hand', 'count': 'Frequency'}
-    )
-    fig.update_layout(bargap=0.1)
-    
-    return fig
-
-
-# =============================================================================
-# RECOMMENDATION ENGINE
-# =============================================================================
-
-def generate_executive_recommendation(kpis, sim_results):
-    """Generate auto-recommendation text for executives."""
+def generate_executive_recommendations(kpis, sim_results):
+    """Generate AI recommendations for executives."""
     recommendations = []
     
-    # Analyze margin
     margin_pct = kpis.get('gross_margin_pct', 0)
     if margin_pct >= 40:
-        recommendations.append("✅ **Strong margin performance** — consider aggressive promotional spend.")
+        recommendations.append({
+            'icon': '✅',
+            'text': f'<strong>Strong margin performance ({margin_pct:.1f}%)</strong> — Consider aggressive promotional spend to capture market share.',
+            'type': 'success'
+        })
     elif margin_pct >= 25:
-        recommendations.append("⚠️ **Moderate margins** — balance discounts carefully to maintain profitability.")
+        recommendations.append({
+            'icon': '⚠️',
+            'text': f'<strong>Moderate margins ({margin_pct:.1f}%)</strong> — Balance discounts carefully to maintain profitability.',
+            'type': 'warning'
+        })
     else:
-        recommendations.append("🔴 **Low margins** — avoid deep discounts; focus on high-margin categories.")
+        recommendations.append({
+            'icon': '🔴',
+            'text': f'<strong>Low margins ({margin_pct:.1f}%)</strong> — Avoid deep discounts; focus on high-margin categories.',
+            'type': 'danger'
+        })
     
-    # Analyze simulation results
     if sim_results:
         stockout_risk = sim_results['kpis'].get('stockout_risk_pct', 0)
         budget_util = sim_results['kpis'].get('budget_utilization', 0)
         
         if stockout_risk > 30:
-            recommendations.append(f"⚠️ **High stockout risk ({stockout_risk:.0f}%)** — consider inventory replenishment before campaign.")
+            recommendations.append({
+                'icon': '📦',
+                'text': f'<strong>High stockout risk ({stockout_risk:.0f}%)</strong> — Consider inventory replenishment before campaign launch.',
+                'type': 'warning'
+            })
         
         if budget_util > 90:
-            recommendations.append("💰 **Budget nearly exhausted** — reduce discount depth or narrow campaign scope.")
+            recommendations.append({
+                'icon': '💰',
+                'text': f'<strong>Budget nearly exhausted ({budget_util:.0f}%)</strong> — Reduce discount depth or narrow campaign scope.',
+                'type': 'danger'
+            })
         elif budget_util < 50:
-            recommendations.append("💡 **Budget underutilized** — opportunity to expand promotional reach.")
+            recommendations.append({
+                'icon': '💡',
+                'text': f'<strong>Budget underutilized ({budget_util:.0f}%)</strong> — Opportunity to expand promotional reach or increase discount.',
+                'type': 'primary'
+            })
         
         if not sim_results['constraints']['all_ok']:
-            recommendations.append("🚫 **Constraint violations detected** — review simulation parameters.")
+            recommendations.append({
+                'icon': '🚫',
+                'text': '<strong>Constraint violations detected</strong> — Review and adjust simulation parameters before proceeding.',
+                'type': 'danger'
+            })
+        else:
+            recommendations.append({
+                'icon': '✨',
+                'text': '<strong>All constraints satisfied</strong> — Campaign parameters are within acceptable bounds.',
+                'type': 'success'
+            })
     
-    return "\n\n".join(recommendations)
+    return recommendations
 
 
 # =============================================================================
@@ -1614,13 +2403,6 @@ def generate_executive_recommendation(kpis, sim_results):
 
 def main():
     """Main Streamlit application."""
-    
-    # =========================================================================
-    # HEADER
-    # =========================================================================
-    st.title("🛒 UAE Promo Pulse Simulator")
-    st.markdown("### Data Rescue Dashboard + What-If Simulation")
-    st.markdown("---")
     
     # =========================================================================
     # SESSION STATE INITIALIZATION
@@ -1638,31 +2420,34 @@ def main():
     # SIDEBAR
     # =========================================================================
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.markdown('<div class="sidebar-header">⚙️ Control Panel</div>', unsafe_allow_html=True)
+        
+        render_subtle_divider()
         
         # View Toggle
-        st.subheader("📊 Dashboard View")
+        st.markdown("**📊 Dashboard View**")
         view_mode = st.radio(
             "Select View",
-            ["Executive", "Manager"],
+            ["👔 Executive", "🔧 Manager"],
             horizontal=True,
-            help="Executive: Financial KPIs | Manager: Operational metrics"
+            label_visibility="collapsed"
         )
+        view_mode = "Executive" if "Executive" in view_mode else "Manager"
         
-        st.markdown("---")
+        render_subtle_divider()
         
         # Data Source Selection
-        st.subheader("📁 Data Source")
+        st.markdown("**📁 Data Source**")
         data_source = st.radio(
             "Choose data source",
-            ["Upload Custom Data", "Load Generated Data"],
-            help="Upload your own CSVs or use pre-generated synthetic data"
+            ["📤 Upload Custom", "📂 Load Generated"],
+            label_visibility="collapsed"
         )
         
-        st.markdown("---")
+        render_subtle_divider()
         
         # Simulation Parameters
-        st.subheader("🎮 Simulation Parameters")
+        st.markdown("**🎮 Simulation Parameters**")
         
         discount_pct = st.slider(
             "Discount %",
@@ -1698,72 +2483,76 @@ def main():
             help="Number of days to simulate"
         )
         
-        st.markdown("---")
+        render_subtle_divider()
         
-        # Filters (will be populated after data load)
-        st.subheader("🔍 Filters")
+        # Filters
+        st.markdown("**🔍 Filters**")
         
         city_filter = st.selectbox(
             "City",
-            ["All"] + VALID_CITIES,
-            help="Filter by city"
+            ["All"] + VALID_CITIES
         )
         
         channel_filter = st.selectbox(
             "Channel",
-            ["All"] + VALID_CHANNELS,
-            help="Filter by sales channel"
+            ["All"] + VALID_CHANNELS
         )
         
         category_filter = st.selectbox(
             "Category",
-            ["All"] + VALID_CATEGORIES,
-            help="Filter by product category"
+            ["All"] + VALID_CATEGORIES
         )
+    
+    # =========================================================================
+    # MAIN CONTENT
+    # =========================================================================
+    
+    # Page Header
+    render_page_header()
     
     # =========================================================================
     # DATA LOADING SECTION
     # =========================================================================
     
-    if data_source == "Upload Custom Data":
-        st.header("📤 Upload Data Files")
+    if "Upload" in data_source:
+        render_section_header("📤", "Upload Data Files", "Upload your CSV or Excel files")
         
         col1, col2 = st.columns(2)
         
         with col1:
             products_file = st.file_uploader(
-                "Products CSV/Excel",
+                "📦 Products",
                 type=['csv', 'xlsx', 'xls'],
                 key='products_upload'
             )
             sales_file = st.file_uploader(
-                "Sales CSV/Excel",
+                "🛒 Sales",
                 type=['csv', 'xlsx', 'xls'],
                 key='sales_upload'
             )
         
         with col2:
             stores_file = st.file_uploader(
-                "Stores CSV/Excel",
+                "🏪 Stores",
                 type=['csv', 'xlsx', 'xls'],
                 key='stores_upload'
             )
             inventory_file = st.file_uploader(
-                "Inventory CSV/Excel",
+                "📊 Inventory",
                 type=['csv', 'xlsx', 'xls'],
                 key='inventory_upload'
             )
         
         # Column Mapping Section
         if any([products_file, stores_file, sales_file, inventory_file]):
-            st.markdown("---")
-            st.header("🔗 Column Mapping")
+            render_divider()
+            render_section_header("🔗", "Column Mapping", "Map your columns to the expected schema")
             
-            with st.expander("Map Product Columns", expanded=products_file is not None):
+            with st.expander("📦 Map Product Columns", expanded=products_file is not None):
                 if products_file:
                     products_raw = load_data_from_upload(products_file)
                     if products_raw is not None:
-                        st.dataframe(products_raw.head(3))
+                        st.dataframe(products_raw.head(3), use_container_width=True)
                         products_mapping = create_column_mapping_ui(
                             products_raw,
                             'Products',
@@ -1780,11 +2569,11 @@ def main():
                         st.session_state.raw_data['products'] = products_raw
                         st.session_state.raw_data['products_mapping'] = products_mapping
             
-            with st.expander("Map Store Columns", expanded=stores_file is not None):
+            with st.expander("🏪 Map Store Columns", expanded=stores_file is not None):
                 if stores_file:
                     stores_raw = load_data_from_upload(stores_file)
                     if stores_raw is not None:
-                        st.dataframe(stores_raw.head(3))
+                        st.dataframe(stores_raw.head(3), use_container_width=True)
                         stores_mapping = create_column_mapping_ui(
                             stores_raw,
                             'Stores',
@@ -1798,11 +2587,11 @@ def main():
                         st.session_state.raw_data['stores'] = stores_raw
                         st.session_state.raw_data['stores_mapping'] = stores_mapping
             
-            with st.expander("Map Sales Columns", expanded=sales_file is not None):
+            with st.expander("🛒 Map Sales Columns", expanded=sales_file is not None):
                 if sales_file:
                     sales_raw = load_data_from_upload(sales_file)
                     if sales_raw is not None:
-                        st.dataframe(sales_raw.head(3))
+                        st.dataframe(sales_raw.head(3), use_container_width=True)
                         sales_mapping = create_column_mapping_ui(
                             sales_raw,
                             'Sales',
@@ -1821,11 +2610,11 @@ def main():
                         st.session_state.raw_data['sales'] = sales_raw
                         st.session_state.raw_data['sales_mapping'] = sales_mapping
             
-            with st.expander("Map Inventory Columns", expanded=inventory_file is not None):
+            with st.expander("📊 Map Inventory Columns", expanded=inventory_file is not None):
                 if inventory_file:
                     inventory_raw = load_data_from_upload(inventory_file)
                     if inventory_raw is not None:
-                        st.dataframe(inventory_raw.head(3))
+                        st.dataframe(inventory_raw.head(3), use_container_width=True)
                         inventory_mapping = create_column_mapping_ui(
                             inventory_raw,
                             'Inventory',
@@ -1841,98 +2630,99 @@ def main():
                         st.session_state.raw_data['inventory'] = inventory_raw
                         st.session_state.raw_data['inventory_mapping'] = inventory_mapping
             
-            # Process Button
-            if st.button("🚀 Process & Clean Data", type="primary"):
-                with st.spinner("Cleaning data..."):
-                    cleaner = DataCleaner()
-                    
-                    # Apply mappings and clean
-                    cleaned = {}
-                    
-                    if 'products' in st.session_state.raw_data:
-                        mapped_products = apply_column_mapping(
-                            st.session_state.raw_data['products'],
-                            st.session_state.raw_data['products_mapping']
-                        )
-                        cleaned['products'] = cleaner.clean_products(mapped_products)
-                    
-                    if 'stores' in st.session_state.raw_data:
-                        mapped_stores = apply_column_mapping(
-                            st.session_state.raw_data['stores'],
-                            st.session_state.raw_data['stores_mapping']
-                        )
-                        cleaned['stores'] = cleaner.clean_stores(mapped_stores)
-                    
-                    if 'sales' in st.session_state.raw_data:
-                        mapped_sales = apply_column_mapping(
-                            st.session_state.raw_data['sales'],
-                            st.session_state.raw_data['sales_mapping']
-                        )
-                        cleaned['sales'] = cleaner.clean_sales(mapped_sales)
-                    
-                    if 'inventory' in st.session_state.raw_data:
-                        mapped_inventory = apply_column_mapping(
-                            st.session_state.raw_data['inventory'],
-                            st.session_state.raw_data['inventory_mapping']
-                        )
-                        cleaned['inventory'] = cleaner.clean_inventory(mapped_inventory)
-                    
-                    st.session_state.cleaned_data = cleaned
-                    st.session_state.issues_log = cleaner.get_issues_dataframe()
-                    st.session_state.cleaning_stats = cleaner.cleaning_stats
-                    st.session_state.data_loaded = True
-                    
-                    st.success("✅ Data cleaned successfully!")
-                    st.rerun()
+            st.markdown("")
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🚀 Process & Clean Data", type="primary", use_container_width=True):
+                    with st.spinner("🔄 Cleaning data..."):
+                        cleaner = DataCleaner()
+                        cleaned = {}
+                        
+                        if 'products' in st.session_state.raw_data:
+                            mapped_products = apply_column_mapping(
+                                st.session_state.raw_data['products'],
+                                st.session_state.raw_data['products_mapping']
+                            )
+                            cleaned['products'] = cleaner.clean_products(mapped_products)
+                        
+                        if 'stores' in st.session_state.raw_data:
+                            mapped_stores = apply_column_mapping(
+                                st.session_state.raw_data['stores'],
+                                st.session_state.raw_data['stores_mapping']
+                            )
+                            cleaned['stores'] = cleaner.clean_stores(mapped_stores)
+                        
+                        if 'sales' in st.session_state.raw_data:
+                            mapped_sales = apply_column_mapping(
+                                st.session_state.raw_data['sales'],
+                                st.session_state.raw_data['sales_mapping']
+                            )
+                            cleaned['sales'] = cleaner.clean_sales(mapped_sales)
+                        
+                        if 'inventory' in st.session_state.raw_data:
+                            mapped_inventory = apply_column_mapping(
+                                st.session_state.raw_data['inventory'],
+                                st.session_state.raw_data['inventory_mapping']
+                            )
+                            cleaned['inventory'] = cleaner.clean_inventory(mapped_inventory)
+                        
+                        st.session_state.cleaned_data = cleaned
+                        st.session_state.issues_log = cleaner.get_issues_dataframe()
+                        st.session_state.cleaning_stats = cleaner.cleaning_stats
+                        st.session_state.data_loaded = True
+                        
+                        st.success("✅ Data cleaned successfully!")
+                        st.rerun()
     
     else:  # Load Generated Data
-        st.header("📂 Load Generated Data")
-        st.info("Upload the CSV files generated by `data_generator.py`")
+        render_section_header("📂", "Load Generated Data", "Upload the CSV files from data_generator.py")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            products_file = st.file_uploader("products.csv", type=['csv'], key='gen_products')
-            sales_file = st.file_uploader("sales_raw.csv", type=['csv'], key='gen_sales')
+            products_file = st.file_uploader("📦 products.csv", type=['csv'], key='gen_products')
+            sales_file = st.file_uploader("🛒 sales_raw.csv", type=['csv'], key='gen_sales')
         
         with col2:
-            stores_file = st.file_uploader("stores.csv", type=['csv'], key='gen_stores')
-            inventory_file = st.file_uploader("inventory_snapshot.csv", type=['csv'], key='gen_inventory')
+            stores_file = st.file_uploader("🏪 stores.csv", type=['csv'], key='gen_stores')
+            inventory_file = st.file_uploader("📊 inventory_snapshot.csv", type=['csv'], key='gen_inventory')
         
-        if st.button("🚀 Load & Clean Data", type="primary"):
-            if all([products_file, stores_file, sales_file, inventory_file]):
-                with st.spinner("Loading and cleaning data..."):
-                    cleaner = DataCleaner()
-                    
-                    # Load and clean each file
-                    products_df = pd.read_csv(products_file)
-                    stores_df = pd.read_csv(stores_file)
-                    sales_df = pd.read_csv(sales_file)
-                    inventory_df = pd.read_csv(inventory_file)
-                    
-                    cleaned = cleaner.run_full_pipeline(
-                        products_df=products_df,
-                        stores_df=stores_df,
-                        sales_df=sales_df,
-                        inventory_df=inventory_df
-                    )
-                    
-                    st.session_state.cleaned_data = cleaned
-                    st.session_state.issues_log = cleaner.get_issues_dataframe()
-                    st.session_state.cleaning_stats = cleaner.cleaning_stats
-                    st.session_state.data_loaded = True
-                    
-                    st.success("✅ Data loaded and cleaned successfully!")
-                    st.rerun()
-            else:
-                st.warning("Please upload all 4 data files.")
+        st.markdown("")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("🚀 Load & Clean Data", type="primary", use_container_width=True):
+                if all([products_file, stores_file, sales_file, inventory_file]):
+                    with st.spinner("🔄 Loading and cleaning data..."):
+                        cleaner = DataCleaner()
+                        
+                        products_df = pd.read_csv(products_file)
+                        stores_df = pd.read_csv(stores_file)
+                        sales_df = pd.read_csv(sales_file)
+                        inventory_df = pd.read_csv(inventory_file)
+                        
+                        cleaned = cleaner.run_full_pipeline(
+                            products_df=products_df,
+                            stores_df=stores_df,
+                            sales_df=sales_df,
+                            inventory_df=inventory_df
+                        )
+                        
+                        st.session_state.cleaned_data = cleaned
+                        st.session_state.issues_log = cleaner.get_issues_dataframe()
+                        st.session_state.cleaning_stats = cleaner.cleaning_stats
+                        st.session_state.data_loaded = True
+                        
+                        st.success("✅ Data loaded and cleaned successfully!")
+                        st.rerun()
+                else:
+                    st.warning("⚠️ Please upload all 4 data files.")
     
     # =========================================================================
     # MAIN DASHBOARD (Only show if data is loaded)
     # =========================================================================
     
     if st.session_state.data_loaded:
-        st.markdown("---")
+        render_divider()
         
         # Get cleaned data
         products_df = st.session_state.cleaned_data.get('products', pd.DataFrame())
@@ -1971,50 +2761,46 @@ def main():
         # EXECUTIVE VIEW
         # =====================================================================
         if view_mode == "Executive":
-            st.header("👔 Executive Dashboard")
+            render_section_header("👔", "Executive Dashboard", "Financial KPIs & Strategic Insights")
             
             # KPI Cards Row
-            st.subheader("📈 Key Performance Indicators")
+            st.markdown("")
+            kpis_row1 = [
+                {
+                    'icon': '💰',
+                    'value': format_currency(historical_kpis['net_revenue']),
+                    'label': 'Net Revenue',
+                    'card_type': 'primary'
+                },
+                {
+                    'icon': '📈',
+                    'value': format_percentage(historical_kpis['gross_margin_pct']),
+                    'label': 'Gross Margin',
+                    'delta': 'Historical',
+                    'delta_type': 'neutral',
+                    'card_type': 'success' if historical_kpis['gross_margin_pct'] >= 30 else 'warning'
+                },
+                {
+                    'icon': '🎯',
+                    'value': format_currency(sim_results['kpis']['profit_proxy']),
+                    'label': 'Profit Proxy (Sim)',
+                    'card_type': 'primary'
+                },
+                {
+                    'icon': '💳',
+                    'value': format_percentage(sim_results['kpis']['budget_utilization']),
+                    'label': 'Budget Utilization',
+                    'card_type': 'success' if sim_results['kpis']['budget_utilization'] <= 80 else 'warning'
+                }
+            ]
+            render_kpi_row(kpis_row1)
             
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                create_kpi_card(
-                    "Net Revenue",
-                    format_currency(historical_kpis['net_revenue']),
-                    delta=None
-                )
-            
-            with col2:
-                create_kpi_card(
-                    "Gross Margin %",
-                    format_percentage(historical_kpis['gross_margin_pct']),
-                    delta=None
-                )
-            
-            with col3:
-                profit_proxy = sim_results['kpis']['profit_proxy']
-                create_kpi_card(
-                    "Profit Proxy (Sim)",
-                    format_currency(profit_proxy),
-                    delta=None
-                )
-            
-            with col4:
-                budget_util = sim_results['kpis']['budget_utilization']
-                create_kpi_card(
-                    "Budget Utilization",
-                    format_percentage(budget_util),
-                    delta=None
-                )
-            
-            st.markdown("---")
+            render_subtle_divider()
             
             # Charts Row 1
             col1, col2 = st.columns(2)
             
             with col1:
-                # Merge sales with store info for charts
                 sales_with_store = sales_df.merge(
                     stores_df[['store_id', 'city', 'channel']],
                     on='store_id',
@@ -2042,10 +2828,40 @@ def main():
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
             
-            st.markdown("---")
+            render_subtle_divider()
+            
+            # Constraint Status
+            render_section_header("🔒", "Constraint Status")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                render_constraint_card(
+                    '💰',
+                    'Budget Constraint',
+                    'Within Limit' if sim_results['constraints']['budget_ok'] else 'Exceeded',
+                    sim_results['constraints']['budget_ok']
+                )
+            
+            with col2:
+                render_constraint_card(
+                    '📊',
+                    'Margin Floor',
+                    'Above Floor' if sim_results['constraints']['margin_ok'] else 'Below Floor',
+                    sim_results['constraints']['margin_ok']
+                )
+            
+            with col3:
+                render_constraint_card(
+                    '✅',
+                    'All Constraints',
+                    'All Passed' if sim_results['constraints']['all_ok'] else 'Violations Detected',
+                    sim_results['constraints']['all_ok']
+                )
+            
+            render_subtle_divider()
             
             # Scenario Comparison Table
-            st.subheader("📊 Scenario Comparison")
+            render_section_header("📊", "Scenario Comparison")
             st.dataframe(
                 scenario_df.style.format({
                     'Simulated Revenue': 'AED {:,.0f}',
@@ -2053,65 +2869,57 @@ def main():
                     'Margin %': '{:.1f}%',
                     'Stockout Risk %': '{:.1f}%',
                     'Budget Used %': '{:.1f}%'
-                }),
-                use_container_width=True
+                }).applymap(
+                    lambda x: 'color: #4ade80' if x == '✓' else 'color: #f87171' if x == '✗' else '',
+                    subset=['Constraints Met']
+                ),
+                use_container_width=True,
+                height=280
             )
             
-            # Constraint Violations
-            if sim_results['violations']:
-                st.subheader("⚠️ Constraint Violations")
-                for violation in sim_results['violations']:
-                    st.error(violation['message'])
-            
-            st.markdown("---")
+            render_subtle_divider()
             
             # Recommendation Box
-            st.subheader("💡 AI Recommendation")
-            recommendation = generate_executive_recommendation(historical_kpis, sim_results)
-            st.info(recommendation)
+            recommendations = generate_executive_recommendations(historical_kpis, sim_results)
+            render_recommendation_box(recommendations)
         
         # =====================================================================
         # MANAGER VIEW
         # =====================================================================
         else:
-            st.header("🔧 Manager / Operations Dashboard")
+            render_section_header("🔧", "Manager Dashboard", "Operational Metrics & Risk Analysis")
             
             # KPI Cards Row
-            st.subheader("📊 Operational Metrics")
+            st.markdown("")
+            kpis_row1 = [
+                {
+                    'icon': '⚠️',
+                    'value': format_percentage(sim_results['kpis']['stockout_risk_pct']),
+                    'label': 'Stockout Risk',
+                    'card_type': 'danger' if sim_results['kpis']['stockout_risk_pct'] > 30 else 'warning' if sim_results['kpis']['stockout_risk_pct'] > 15 else 'success'
+                },
+                {
+                    'icon': '↩️',
+                    'value': format_percentage(historical_kpis['return_rate']),
+                    'label': 'Return Rate',
+                    'card_type': 'success' if historical_kpis['return_rate'] < 5 else 'warning'
+                },
+                {
+                    'icon': '❌',
+                    'value': format_percentage(historical_kpis['payment_failure_rate']),
+                    'label': 'Payment Failure',
+                    'card_type': 'success' if historical_kpis['payment_failure_rate'] < 10 else 'danger'
+                },
+                {
+                    'icon': '📦',
+                    'value': format_number(sim_results['kpis']['products_at_risk']),
+                    'label': 'High-Risk SKUs',
+                    'card_type': 'danger' if sim_results['kpis']['products_at_risk'] > 50 else 'warning' if sim_results['kpis']['products_at_risk'] > 20 else 'success'
+                }
+            ]
+            render_kpi_row(kpis_row1)
             
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                stockout_risk = sim_results['kpis']['stockout_risk_pct']
-                create_kpi_card(
-                    "Stockout Risk %",
-                    format_percentage(stockout_risk),
-                    delta=None
-                )
-            
-            with col2:
-                create_kpi_card(
-                    "Return Rate %",
-                    format_percentage(historical_kpis['return_rate']),
-                    delta=None
-                )
-            
-            with col3:
-                create_kpi_card(
-                    "Payment Failure %",
-                    format_percentage(historical_kpis['payment_failure_rate']),
-                    delta=None
-                )
-            
-            with col4:
-                high_risk_skus = sim_results['kpis']['products_at_risk']
-                create_kpi_card(
-                    "High-Risk SKUs",
-                    f"{high_risk_skus:,}",
-                    delta=None
-                )
-            
-            st.markdown("---")
+            render_subtle_divider()
             
             # Charts Row 1
             col1, col2 = st.columns(2)
@@ -2135,96 +2943,116 @@ def main():
                     st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                # Revenue by channel
                 sales_with_store = sales_df.merge(
                     stores_df[['store_id', 'city', 'channel']],
                     on='store_id',
                     how='left'
                 )
-                fig = create_revenue_by_dimension_chart(sales_with_store, 'channel')
+                fig = create_channel_performance_chart(sales_with_store)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
             
-            st.markdown("---")
+            render_subtle_divider()
             
             # Top 10 Stockout Risk Table
-            st.subheader("🚨 Top 10 Stockout Risk Items")
+            render_section_header("🚨", "Top 10 Stockout Risk Items")
             top_stockout = sim_results.get('top_stockout_items', pd.DataFrame())
             if not top_stockout.empty:
                 st.dataframe(
                     top_stockout.style.format({
                         'Projected Demand': '{:.0f}',
                         'Stock Available': '{:.0f}'
-                    }),
-                    use_container_width=True
+                    }).applymap(
+                        lambda x: 'background-color: rgba(248, 113, 113, 0.2)' if isinstance(x, (int, float)) and x < 50 else '',
+                        subset=['Stock Available']
+                    ),
+                    use_container_width=True,
+                    height=350
                 )
             else:
-                st.info("No stockout risks detected for current simulation parameters.")
+                render_insight_box(
+                    '✅',
+                    'No Stockout Risks',
+                    'No stockout risks detected for current simulation parameters. Inventory levels are sufficient to meet projected demand.',
+                    'success'
+                )
             
-            st.markdown("---")
+            render_subtle_divider()
             
             # Data Quality Summary
-            st.subheader("🔍 Data Quality Summary")
+            render_section_header("🔍", "Data Quality Summary")
             
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Issues Found", len(issues_df))
+                render_status_box("Total Issues", format_number(len(issues_df)), "warning" if len(issues_df) > 100 else "success")
             
             with col2:
                 if not issues_df.empty:
                     top_issue = issues_df['issue_type'].value_counts().index[0]
-                    st.metric("Most Common Issue", top_issue)
+                    render_status_box("Top Issue Type", top_issue.replace('_', ' ').title(), "primary")
                 else:
-                    st.metric("Most Common Issue", "None")
+                    render_status_box("Top Issue Type", "None", "success")
             
             with col3:
                 tables_cleaned = len(st.session_state.cleaning_stats)
-                st.metric("Tables Cleaned", tables_cleaned)
+                render_status_box("Tables Cleaned", str(tables_cleaned), "primary")
             
-            # Issues Log Table
+            with col4:
+                total_records = sum(stats.get('original', 0) for stats in st.session_state.cleaning_stats.values())
+                render_status_box("Records Processed", format_number(total_records), "primary")
+            
+            # Issues Log Expander
             if not issues_df.empty:
                 with st.expander("📋 View Full Issues Log"):
-                    st.dataframe(issues_df, use_container_width=True)
+                    st.dataframe(issues_df, use_container_width=True, height=400)
         
         # =====================================================================
         # DOWNLOAD SECTION (Common to both views)
         # =====================================================================
-        st.markdown("---")
-        st.subheader("📥 Download Data")
+        render_divider()
+        render_section_header("📥", "Download Data")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             if not sales_df.empty:
                 st.download_button(
-                    label="⬇️ Download Cleaned Sales",
+                    label="⬇️ Cleaned Sales",
                     data=convert_df_to_csv(sales_df),
                     file_name="cleaned_sales.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    use_container_width=True
                 )
         
         with col2:
             if not issues_df.empty:
                 st.download_button(
-                    label="⬇️ Download Issues Log",
+                    label="⬇️ Issues Log",
                     data=convert_df_to_csv(issues_df),
                     file_name="issues.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    use_container_width=True
                 )
         
         with col3:
             if not scenario_df.empty:
                 st.download_button(
-                    label="⬇️ Download Scenarios",
+                    label="⬇️ Scenarios",
                     data=convert_df_to_csv(scenario_df),
                     file_name="scenarios.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    use_container_width=True
                 )
     
     else:
         # No data loaded yet
-        st.info("👆 Please upload data files using the options above to begin analysis.")
+        render_insight_box(
+            '👆',
+            'Getting Started',
+            'Please upload your data files using the options above to begin analysis. You can either upload custom CSV/Excel files or load the pre-generated synthetic data from <code>data_generator.py</code>.',
+            'primary'
+        )
         
         # Show expected schema
         with st.expander("📋 Expected Data Schema"):
@@ -2275,16 +3103,7 @@ def main():
     # =========================================================================
     # FOOTER
     # =========================================================================
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center; color: gray; font-size: 12px;'>
-        UAE Promo Pulse Simulator | Data Rescue Dashboard<br>
-        Built with Streamlit + Pandas + Plotly
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    render_footer()
 
 
 # =============================================================================
