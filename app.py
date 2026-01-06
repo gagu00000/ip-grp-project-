@@ -11,6 +11,7 @@ Features:
     - Professional Plotly charts with consistent theming
     - Executive/Manager toggle views
     - Faculty dataset testing with column mapping
+    - Defensive error handling throughout
 
 Author: Data Rescue Team
 Date: 2024
@@ -183,7 +184,7 @@ st.markdown("""
         color: #d0d0d0;
     }
     
-    /* ===== NATIVE METRICS (hide default) ===== */
+    /* ===== NATIVE METRICS ===== */
     [data-testid="stMetricValue"] {
         color: #3a86ff;
         font-size: 2rem;
@@ -476,25 +477,30 @@ st.markdown("""
         align-items: flex-start;
         gap: 12px;
         margin: 12px 0;
-        padding: 12px 16px;
-        background: rgba(58, 134, 255, 0.05);
-        border-radius: 8px;
-        border-left: 3px solid #3a86ff;
+        padding: 14px 18px;
+        background: rgba(58, 134, 255, 0.08);
+        border-radius: 10px;
+        border-left: 4px solid #3a86ff;
     }
     
     .recommendation-item-success {
         border-left-color: #4ade80;
-        background: rgba(74, 222, 128, 0.05);
+        background: rgba(74, 222, 128, 0.08);
     }
     
     .recommendation-item-warning {
         border-left-color: #fb923c;
-        background: rgba(251, 146, 60, 0.05);
+        background: rgba(251, 146, 60, 0.08);
     }
     
     .recommendation-item-danger {
         border-left-color: #f87171;
-        background: rgba(248, 113, 113, 0.05);
+        background: rgba(248, 113, 113, 0.08);
+    }
+    
+    .recommendation-item strong {
+        color: #ffffff;
+        font-weight: 600;
     }
     
     /* ===== CONSTRAINT CARDS ===== */
@@ -911,17 +917,7 @@ def render_section_header(icon, title, subtitle=None):
 
 
 def render_kpi_card(icon, value, label, delta=None, delta_type="neutral", card_type="primary"):
-    """
-    Render a styled KPI card.
-    
-    Args:
-        icon: Emoji or icon
-        value: Main value to display
-        label: Label text
-        delta: Delta value (optional)
-        delta_type: 'positive', 'negative', or 'neutral'
-        card_type: 'primary', 'success', 'warning', or 'danger'
-    """
+    """Render a styled KPI card."""
     delta_class = f"kpi-delta-{delta_type}"
     delta_symbol = "▲" if delta_type == "positive" else "▼" if delta_type == "negative" else "●"
     delta_html = f'<div class="kpi-delta {delta_class}">{delta_symbol} {delta}</div>' if delta else ''
@@ -986,10 +982,11 @@ def render_recommendation_box(recommendations):
     items_html = ""
     for rec in recommendations:
         item_type = rec.get('type', 'primary')
+        text_content = rec['text']
         items_html += f"""
         <div class="recommendation-item recommendation-item-{item_type}">
-            <span>{rec['icon']}</span>
-            <span>{rec['text']}</span>
+            <span style="font-size: 1.2rem;">{rec['icon']}</span>
+            <span style="color: #d0d0d0;">{text_content}</span>
         </div>
         """
     
@@ -1079,6 +1076,7 @@ class DataCleaner:
         self.cleaning_stats = {}
     
     def log_issue(self, table_name, record_id, issue_type, issue_detail, action_taken):
+        """Log a data quality issue."""
         self.issues_log.append({
             'table_name': table_name,
             'record_id': str(record_id),
@@ -1089,18 +1087,30 @@ class DataCleaner:
         })
     
     def get_issues_dataframe(self):
+        """Return issues log as DataFrame."""
         if self.issues_log:
             return pd.DataFrame(self.issues_log)
         return pd.DataFrame(columns=['table_name', 'record_id', 'issue_type', 
                                       'issue_detail', 'action_taken', 'timestamp'])
     
     def clean_products(self, df):
+        """Clean products table."""
         if df is None or df.empty:
             return df
         
         df = df.copy()
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
+        
+        # Ensure required columns exist
+        if 'product_id' not in df.columns:
+            df['product_id'] = [f'PROD_{i:05d}' for i in range(len(df))]
+        
+        if 'base_price_aed' not in df.columns:
+            df['base_price_aed'] = 100.0
+        
+        if 'unit_cost_aed' not in df.columns:
+            df['unit_cost_aed'] = np.nan
         
         # Handle missing unit_cost_aed
         missing_cost_mask = df['unit_cost_aed'].isna()
@@ -1162,6 +1172,8 @@ class DataCleaner:
                         action_taken='Set to Other'
                     )
                 stats['issues_found'] += invalid_category_count
+        else:
+            df['category'] = 'Other'
         
         # Validate tax_rate
         if 'tax_rate' in df.columns:
@@ -1180,6 +1192,8 @@ class DataCleaner:
                         action_taken='Set to 0.05 (UAE VAT)'
                     )
                 stats['issues_found'] += invalid_tax_mask.sum()
+        else:
+            df['tax_rate'] = 0.05
         
         # Validate launch_flag
         if 'launch_flag' in df.columns:
@@ -1198,6 +1212,8 @@ class DataCleaner:
                         action_taken='Set to Regular'
                     )
                 stats['issues_found'] += invalid_flag_mask.sum()
+        else:
+            df['launch_flag'] = 'Regular'
         
         stats['final'] = len(df)
         stats['dropped'] = original_count - len(df)
@@ -1206,6 +1222,7 @@ class DataCleaner:
         return df
     
     def clean_stores(self, df):
+        """Clean stores table."""
         if df is None or df.empty:
             return df
         
@@ -1213,13 +1230,27 @@ class DataCleaner:
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
         
+        # Ensure required columns exist
+        if 'store_id' not in df.columns:
+            df['store_id'] = [f'STORE_{i:03d}' for i in range(len(df))]
+        
         # Standardize city names
         if 'city' in df.columns:
             for idx in df.index:
                 city_value = df.loc[idx, 'city']
                 store_id = df.loc[idx, 'store_id']
                 
-                if city_value not in VALID_CITIES:
+                if pd.isna(city_value):
+                    df.loc[idx, 'city'] = 'Dubai'
+                    self.log_issue(
+                        table_name='stores',
+                        record_id=store_id,
+                        issue_type='MISSING_VALUE',
+                        issue_detail='city was NULL',
+                        action_taken='Defaulted to Dubai'
+                    )
+                    stats['issues_found'] += 1
+                elif city_value not in VALID_CITIES:
                     if city_value in CITY_MAPPING:
                         standardized = CITY_MAPPING[city_value]
                         df.loc[idx, 'city'] = standardized
@@ -1259,6 +1290,8 @@ class DataCleaner:
                                 action_taken='Defaulted to Dubai'
                             )
                             stats['issues_found'] += 1
+        else:
+            df['city'] = 'Dubai'
         
         # Validate channel
         if 'channel' in df.columns:
@@ -1277,6 +1310,8 @@ class DataCleaner:
                         action_taken='Defaulted to Web'
                     )
                 stats['issues_found'] += invalid_channel_mask.sum()
+        else:
+            df['channel'] = 'Web'
         
         # Validate fulfillment_type
         if 'fulfillment_type' in df.columns:
@@ -1295,6 +1330,8 @@ class DataCleaner:
                         action_taken='Defaulted to Own'
                     )
                 stats['issues_found'] += invalid_fulfill_mask.sum()
+        else:
+            df['fulfillment_type'] = 'Own'
         
         stats['final'] = len(df)
         stats['dropped'] = original_count - len(df)
@@ -1303,12 +1340,32 @@ class DataCleaner:
         return df
     
     def clean_sales(self, df, products_df=None):
+        """Clean sales table."""
         if df is None or df.empty:
             return df
         
         df = df.copy()
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
+        
+        # Ensure required columns exist
+        if 'order_id' not in df.columns:
+            df['order_id'] = [f'ORD_{i:08d}' for i in range(len(df))]
+        
+        if 'qty' not in df.columns:
+            df['qty'] = 1
+        
+        if 'selling_price_aed' not in df.columns:
+            df['selling_price_aed'] = 100.0
+        
+        if 'payment_status' not in df.columns:
+            df['payment_status'] = 'Paid'
+        
+        if 'return_flag' not in df.columns:
+            df['return_flag'] = 0
+        
+        if 'discount_pct' not in df.columns:
+            df['discount_pct'] = 0.0
         
         # Parse and validate timestamps
         if 'order_time' in df.columns:
@@ -1335,6 +1392,8 @@ class DataCleaner:
             
             df['order_time'] = df['order_time_parsed']
             df = df.drop(columns=['order_time_parsed'])
+        else:
+            df['order_time'] = datetime.now()
         
         # Handle duplicates
         if 'order_id' in df.columns:
@@ -1381,6 +1440,9 @@ class DataCleaner:
         
         # Handle qty outliers
         if 'qty' in df.columns:
+            # Convert to numeric
+            df['qty'] = pd.to_numeric(df['qty'], errors='coerce').fillna(1).astype(int)
+            
             outlier_qty_mask = df['qty'] > QTY_MAX_THRESHOLD
             outlier_qty_count = outlier_qty_mask.sum()
             
@@ -1417,6 +1479,8 @@ class DataCleaner:
         
         # Handle price outliers
         if 'selling_price_aed' in df.columns:
+            df['selling_price_aed'] = pd.to_numeric(df['selling_price_aed'], errors='coerce').fillna(100)
+            
             median_price = df['selling_price_aed'].median()
             if median_price > 0:
                 outlier_price_mask = df['selling_price_aed'] > (median_price * PRICE_MULTIPLIER_THRESHOLD)
@@ -1468,6 +1532,7 @@ class DataCleaner:
         return df
     
     def clean_inventory(self, df):
+        """Clean inventory table."""
         if df is None or df.empty:
             return df
         
@@ -1475,14 +1540,29 @@ class DataCleaner:
         original_count = len(df)
         stats = {'original': original_count, 'issues_found': 0}
         
+        # Ensure required columns exist
+        if 'product_id' not in df.columns:
+            df['product_id'] = 'PROD_00001'
+        
+        if 'store_id' not in df.columns:
+            df['store_id'] = 'STORE_001'
+        
+        if 'stock_on_hand' not in df.columns:
+            df['stock_on_hand'] = 100
+        
+        if 'snapshot_date' not in df.columns:
+            df['snapshot_date'] = datetime.now().date()
+        
         # Handle negative stock_on_hand
         if 'stock_on_hand' in df.columns:
+            df['stock_on_hand'] = pd.to_numeric(df['stock_on_hand'], errors='coerce').fillna(0)
+            
             negative_stock_mask = df['stock_on_hand'] < 0
             negative_stock_count = negative_stock_mask.sum()
             
             if negative_stock_count > 0:
                 for idx in df[negative_stock_mask].index:
-                    record_id = f"{df.loc[idx, 'product_id']}_{df.loc[idx, 'store_id']}_{df.loc[idx, 'snapshot_date']}"
+                    record_id = f"{df.loc[idx, 'product_id']}_{df.loc[idx, 'store_id']}"
                     old_stock = df.loc[idx, 'stock_on_hand']
                     df.loc[idx, 'stock_on_hand'] = 0
                     
@@ -1508,7 +1588,7 @@ class DataCleaner:
                     stock_cap = 500
                 
                 for idx in df[extreme_stock_mask].index:
-                    record_id = f"{df.loc[idx, 'product_id']}_{df.loc[idx, 'store_id']}_{df.loc[idx, 'snapshot_date']}"
+                    record_id = f"{df.loc[idx, 'product_id']}_{df.loc[idx, 'store_id']}"
                     old_stock = df.loc[idx, 'stock_on_hand']
                     df.loc[idx, 'stock_on_hand'] = stock_cap
                     
@@ -1523,6 +1603,8 @@ class DataCleaner:
         
         # Handle negative reorder_point
         if 'reorder_point' in df.columns:
+            df['reorder_point'] = pd.to_numeric(df['reorder_point'], errors='coerce').fillna(10)
+            
             negative_reorder_mask = df['reorder_point'] < 0
             if negative_reorder_mask.sum() > 0:
                 for idx in df[negative_reorder_mask].index:
@@ -1538,9 +1620,13 @@ class DataCleaner:
                         action_taken='Set to 0'
                     )
                 stats['issues_found'] += negative_reorder_mask.sum()
+        else:
+            df['reorder_point'] = 10
         
         # Validate lead_time_days
         if 'lead_time_days' in df.columns:
+            df['lead_time_days'] = pd.to_numeric(df['lead_time_days'], errors='coerce').fillna(7)
+            
             invalid_lead_mask = (df['lead_time_days'] <= 0) | (df['lead_time_days'] > 90)
             if invalid_lead_mask.sum() > 0:
                 for idx in df[invalid_lead_mask].index:
@@ -1556,6 +1642,8 @@ class DataCleaner:
                         action_taken='Set to 7 days'
                     )
                 stats['issues_found'] += invalid_lead_mask.sum()
+        else:
+            df['lead_time_days'] = 7
         
         # Parse snapshot_date
         if 'snapshot_date' in df.columns:
@@ -1563,7 +1651,7 @@ class DataCleaner:
             invalid_date_mask = df['snapshot_date'].isna()
             if invalid_date_mask.sum() > 0:
                 stats['issues_found'] += invalid_date_mask.sum()
-                df = df[~invalid_date_mask]
+                df.loc[invalid_date_mask, 'snapshot_date'] = datetime.now()
         
         stats['final'] = len(df)
         stats['dropped'] = original_count - len(df)
@@ -1573,119 +1661,186 @@ class DataCleaner:
     
     def run_full_pipeline(self, products_df=None, stores_df=None, 
                           sales_df=None, inventory_df=None):
+        """Run the full cleaning pipeline."""
         cleaned = {}
         
-        if products_df is not None:
+        if products_df is not None and not products_df.empty:
             cleaned['products'] = self.clean_products(products_df)
+        else:
+            cleaned['products'] = pd.DataFrame()
         
-        if stores_df is not None:
+        if stores_df is not None and not stores_df.empty:
             cleaned['stores'] = self.clean_stores(stores_df)
+        else:
+            cleaned['stores'] = pd.DataFrame()
         
-        if sales_df is not None:
+        if sales_df is not None and not sales_df.empty:
             cleaned['sales'] = self.clean_sales(sales_df, products_df)
+        else:
+            cleaned['sales'] = pd.DataFrame()
         
-        if inventory_df is not None:
+        if inventory_df is not None and not inventory_df.empty:
             cleaned['inventory'] = self.clean_inventory(inventory_df)
+        else:
+            cleaned['inventory'] = pd.DataFrame()
         
         return cleaned
 
 
 # =============================================================================
-# KPI CALCULATOR MODULE
+# KPI CALCULATOR MODULE (FIXED WITH DEFENSIVE CHECKS)
 # =============================================================================
 
 class KPICalculator:
-    """Computes KPIs from cleaned sales data."""
+    """Computes KPIs from cleaned sales data with defensive checks."""
     
     def __init__(self, sales_df, products_df=None, stores_df=None):
-        self.sales = sales_df.copy() if sales_df is not None else pd.DataFrame()
-        self.products = products_df.copy() if products_df is not None else pd.DataFrame()
-        self.stores = stores_df.copy() if stores_df is not None else pd.DataFrame()
+        self.sales = sales_df.copy() if sales_df is not None and not sales_df.empty else pd.DataFrame()
+        self.products = products_df.copy() if products_df is not None and not products_df.empty else pd.DataFrame()
+        self.stores = stores_df.copy() if stores_df is not None and not stores_df.empty else pd.DataFrame()
+        self.sales_merged = self._merge_data()
+    
+    def _merge_data(self):
+        """Safely merge sales with products and stores."""
+        if self.sales.empty:
+            return pd.DataFrame()
         
-        if not self.sales.empty and not self.products.empty:
-            self.sales_merged = self.sales.merge(
-                self.products[['product_id', 'unit_cost_aed', 'category', 'base_price_aed']],
-                on='product_id',
-                how='left'
-            )
-        else:
-            self.sales_merged = self.sales
+        merged = self.sales.copy()
         
-        if not self.sales_merged.empty and not self.stores.empty:
-            self.sales_merged = self.sales_merged.merge(
-                self.stores[['store_id', 'city', 'channel']],
-                on='store_id',
-                how='left'
-            )
+        # Merge with products
+        if not self.products.empty and 'product_id' in merged.columns and 'product_id' in self.products.columns:
+            product_cols = ['product_id']
+            for col in ['unit_cost_aed', 'category', 'base_price_aed']:
+                if col in self.products.columns:
+                    product_cols.append(col)
+            
+            if len(product_cols) > 1:
+                merged = merged.merge(
+                    self.products[product_cols],
+                    on='product_id',
+                    how='left'
+                )
+        
+        # Merge with stores
+        if not self.stores.empty and 'store_id' in merged.columns and 'store_id' in self.stores.columns:
+            store_cols = ['store_id']
+            for col in ['city', 'channel']:
+                if col in self.stores.columns:
+                    store_cols.append(col)
+            
+            if len(store_cols) > 1:
+                merged = merged.merge(
+                    self.stores[store_cols],
+                    on='store_id',
+                    how='left'
+                )
+        
+        return merged
+    
+    def _safe_column_check(self, df, col):
+        """Check if column exists in dataframe."""
+        return df is not None and not df.empty and col in df.columns
     
     def calc_gross_revenue(self, df=None):
+        """Calculate gross revenue."""
         data = df if df is not None else self.sales_merged
-        if data.empty:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'payment_status'):
+            return 0
+        if not self._safe_column_check(data, 'qty') or not self._safe_column_check(data, 'selling_price_aed'):
             return 0
         paid_sales = data[data['payment_status'] == 'Paid']
         return (paid_sales['qty'] * paid_sales['selling_price_aed']).sum()
     
     def calc_refund_amount(self, df=None):
+        """Calculate refund amount."""
         data = df if df is not None else self.sales_merged
-        if data.empty:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'payment_status'):
+            return 0
+        if not self._safe_column_check(data, 'qty') or not self._safe_column_check(data, 'selling_price_aed'):
             return 0
         refunded = data[data['payment_status'] == 'Refunded']
         return (refunded['qty'] * refunded['selling_price_aed']).sum()
     
     def calc_net_revenue(self, df=None):
+        """Calculate net revenue."""
         return self.calc_gross_revenue(df) - self.calc_refund_amount(df)
     
     def calc_cogs(self, df=None):
+        """Calculate cost of goods sold."""
         data = df if df is not None else self.sales_merged
-        if data.empty or 'unit_cost_aed' not in data.columns:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'unit_cost_aed'):
+            return 0
+        if not self._safe_column_check(data, 'payment_status') or not self._safe_column_check(data, 'qty'):
             return 0
         paid_sales = data[data['payment_status'] == 'Paid']
         return (paid_sales['qty'] * paid_sales['unit_cost_aed']).sum()
     
     def calc_gross_margin_aed(self, df=None):
+        """Calculate gross margin in AED."""
         return self.calc_net_revenue(df) - self.calc_cogs(df)
     
     def calc_gross_margin_pct(self, df=None):
+        """Calculate gross margin percentage."""
         net_rev = self.calc_net_revenue(df)
         if net_rev == 0:
             return 0
         return (self.calc_gross_margin_aed(df) / net_rev) * 100
     
     def calc_avg_discount_pct(self, df=None):
+        """Calculate average discount percentage."""
         data = df if df is not None else self.sales_merged
-        if data.empty or 'discount_pct' not in data.columns:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'discount_pct'):
             return 0
         return data['discount_pct'].mean()
     
     def calc_return_rate(self, df=None):
+        """Calculate return rate."""
         data = df if df is not None else self.sales_merged
-        if data.empty:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'payment_status'):
             return 0
         paid_orders = data[data['payment_status'] == 'Paid']
         if len(paid_orders) == 0:
             return 0
-        if 'return_flag' not in paid_orders.columns:
+        if not self._safe_column_check(paid_orders, 'return_flag'):
             return 0
         return (paid_orders['return_flag'].sum() / len(paid_orders)) * 100
     
     def calc_payment_failure_rate(self, df=None):
+        """Calculate payment failure rate."""
         data = df if df is not None else self.sales_merged
-        if data.empty:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'payment_status'):
             return 0
         failed = data[data['payment_status'] == 'Failed']
         return (len(failed) / len(data)) * 100
     
     def calc_total_orders(self, df=None):
+        """Calculate total orders."""
         data = df if df is not None else self.sales_merged
-        return len(data)
+        return len(data) if data is not None and not data.empty else 0
     
     def calc_total_units(self, df=None):
+        """Calculate total units sold."""
         data = df if df is not None else self.sales_merged
-        if data.empty:
+        if data is None or data.empty:
+            return 0
+        if not self._safe_column_check(data, 'qty'):
             return 0
         return data['qty'].sum()
     
     def compute_all_kpis(self, df=None):
+        """Compute all KPIs."""
         return {
             'gross_revenue': self.calc_gross_revenue(df),
             'refund_amount': self.calc_refund_amount(df),
@@ -1701,53 +1856,94 @@ class KPICalculator:
         }
     
     def get_kpis_by_dimension(self, dimension='city'):
+        """Get KPIs grouped by dimension."""
         if self.sales_merged.empty or dimension not in self.sales_merged.columns:
             return pd.DataFrame()
         
         results = []
         for value in self.sales_merged[dimension].unique():
+            if pd.isna(value):
+                continue
             filtered = self.sales_merged[self.sales_merged[dimension] == value]
             kpis = self.compute_all_kpis(filtered)
             kpis[dimension] = value
             results.append(kpis)
         
-        return pd.DataFrame(results)
+        return pd.DataFrame(results) if results else pd.DataFrame()
 
 
 # =============================================================================
-# PROMO SIMULATOR MODULE
+# PROMO SIMULATOR MODULE (FIXED WITH DEFENSIVE CHECKS)
 # =============================================================================
 
 class PromoSimulator:
-    """What-If Promo Simulation Engine."""
+    """What-If Promo Simulation Engine with defensive checks."""
     
     def __init__(self, sales_df, products_df, stores_df, inventory_df):
-        self.sales = sales_df.copy() if sales_df is not None else pd.DataFrame()
-        self.products = products_df.copy() if products_df is not None else pd.DataFrame()
-        self.stores = stores_df.copy() if stores_df is not None else pd.DataFrame()
-        self.inventory = inventory_df.copy() if inventory_df is not None else pd.DataFrame()
+        self.sales = sales_df.copy() if sales_df is not None and not sales_df.empty else pd.DataFrame()
+        self.products = products_df.copy() if products_df is not None and not products_df.empty else pd.DataFrame()
+        self.stores = stores_df.copy() if stores_df is not None and not stores_df.empty else pd.DataFrame()
+        self.inventory = inventory_df.copy() if inventory_df is not None and not inventory_df.empty else pd.DataFrame()
+        self.sales_merged = pd.DataFrame()
         self._prepare_data()
     
+    def _safe_get_columns(self, df, columns):
+        """Safely get columns that exist in dataframe."""
+        if df is None or df.empty:
+            return []
+        existing = [col for col in columns if col in df.columns]
+        return existing
+    
     def _prepare_data(self):
+        """Prepare merged data with defensive checks."""
         if self.sales.empty:
             self.sales_merged = pd.DataFrame()
             return
         
-        self.sales_merged = self.sales.merge(
-            self.products[['product_id', 'unit_cost_aed', 'category', 'base_price_aed']],
-            on='product_id',
-            how='left'
-        )
+        self.sales_merged = self.sales.copy()
         
-        if not self.stores.empty:
-            self.sales_merged = self.sales_merged.merge(
-                self.stores[['store_id', 'city', 'channel']],
-                on='store_id',
-                how='left'
+        # Merge with products if available
+        if not self.products.empty and 'product_id' in self.sales_merged.columns:
+            product_cols = self._safe_get_columns(
+                self.products, 
+                ['product_id', 'unit_cost_aed', 'category', 'base_price_aed']
             )
+            
+            if 'product_id' in product_cols:
+                merge_cols = [col for col in product_cols if col in self.products.columns]
+                if merge_cols:
+                    self.sales_merged = self.sales_merged.merge(
+                        self.products[merge_cols],
+                        on='product_id',
+                        how='left'
+                    )
+        
+        # Merge with stores if available
+        if not self.stores.empty and 'store_id' in self.sales_merged.columns:
+            store_cols = self._safe_get_columns(
+                self.stores,
+                ['store_id', 'city', 'channel']
+            )
+            
+            if 'store_id' in store_cols:
+                merge_cols = [col for col in store_cols if col in self.stores.columns]
+                if merge_cols:
+                    self.sales_merged = self.sales_merged.merge(
+                        self.stores[merge_cols],
+                        on='store_id',
+                        how='left'
+                    )
     
     def calculate_baseline_demand(self, lookback_days=30):
+        """Calculate baseline demand with defensive checks."""
         if self.sales_merged.empty:
+            return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
+        
+        # Check for required columns
+        required_cols = ['product_id', 'store_id', 'qty', 'payment_status', 'order_time']
+        missing_cols = [col for col in required_cols if col not in self.sales_merged.columns]
+        
+        if missing_cols:
             return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
         
         paid_sales = self.sales_merged[self.sales_merged['payment_status'] == 'Paid'].copy()
@@ -1755,8 +1951,15 @@ class PromoSimulator:
         if paid_sales.empty:
             return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
         
+        # Parse datetime
         if not pd.api.types.is_datetime64_any_dtype(paid_sales['order_time']):
             paid_sales['order_time'] = pd.to_datetime(paid_sales['order_time'], errors='coerce')
+        
+        # Remove rows with invalid timestamps
+        paid_sales = paid_sales.dropna(subset=['order_time'])
+        
+        if paid_sales.empty:
+            return pd.DataFrame(columns=['product_id', 'store_id', 'baseline_daily_demand'])
         
         max_date = paid_sales['order_time'].max()
         min_date = max_date - timedelta(days=lookback_days)
@@ -1764,29 +1967,35 @@ class PromoSimulator:
         
         if recent_sales.empty:
             recent_sales = paid_sales
-            lookback_days = max(1, (paid_sales['order_time'].max() - paid_sales['order_time'].min()).days)
+            date_range = (paid_sales['order_time'].max() - paid_sales['order_time'].min()).days
+            lookback_days = max(1, date_range)
         
         baseline = recent_sales.groupby(['product_id', 'store_id']).agg({
             'qty': 'sum'
         }).reset_index()
         
-        baseline['baseline_daily_demand'] = baseline['qty'] / lookback_days
+        baseline['baseline_daily_demand'] = baseline['qty'] / max(lookback_days, 1)
         baseline = baseline.drop(columns=['qty'])
         
         return baseline
     
     def calculate_uplift_factor(self, discount_pct, channel='Web', category='Other'):
+        """Calculate demand uplift factor."""
         base_uplift = 1 + (discount_pct * UPLIFT_CONFIG['base_multiplier'])
         base_uplift = min(base_uplift, UPLIFT_CONFIG['max_uplift'])
         
         channel_mod = UPLIFT_CONFIG['channel_modifiers'].get(channel, 1.0)
         category_mod = UPLIFT_CONFIG['category_modifiers'].get(category, 1.0)
         
-        return base_uplift * channel_mod * category_mod
+        final_uplift = base_uplift * channel_mod * category_mod
+        return min(final_uplift, UPLIFT_CONFIG['max_uplift'])
     
     def run_simulation(self, discount_pct, promo_budget_aed, margin_floor_pct,
                        simulation_days=14, city_filter='All', channel_filter='All',
                        category_filter='All'):
+        """Run promotion simulation with comprehensive error handling."""
+        
+        # Initialize results structure
         results = {
             'parameters': {
                 'discount_pct': discount_pct,
@@ -1797,38 +2006,92 @@ class PromoSimulator:
                 'channel_filter': channel_filter,
                 'category_filter': category_filter
             },
-            'kpis': {},
-            'constraints': {},
-            'violations': [],
-            'details': pd.DataFrame()
-        }
-        
-        baseline = self.calculate_baseline_demand()
-        
-        if baseline.empty:
-            results['kpis'] = {
+            'kpis': {
                 'simulated_revenue': 0,
+                'simulated_cogs': 0,
+                'gross_margin_aed': 0,
+                'gross_margin_pct': 0,
                 'promo_spend': 0,
                 'profit_proxy': 0,
                 'budget_utilization': 0,
                 'stockout_risk_pct': 0,
-                'simulated_units': 0
-            }
+                'simulated_units': 0,
+                'products_at_risk': 0
+            },
+            'constraints': {
+                'budget_ok': True,
+                'margin_ok': True,
+                'all_ok': True
+            },
+            'violations': [],
+            'details': pd.DataFrame(),
+            'top_stockout_items': pd.DataFrame(columns=['Product', 'Store', 'Projected Demand', 'Stock Available', 'Category'])
+        }
+        
+        # Get baseline demand
+        baseline = self.calculate_baseline_demand()
+        
+        if baseline.empty:
             return results
         
-        sim_data = baseline.merge(
-            self.products[['product_id', 'base_price_aed', 'unit_cost_aed', 'category']],
-            on='product_id',
-            how='left'
-        )
+        # Start building simulation data
+        sim_data = baseline.copy()
         
+        # Merge with products data
+        if not self.products.empty:
+            product_cols_to_merge = []
+            for col in ['product_id', 'base_price_aed', 'unit_cost_aed', 'category']:
+                if col in self.products.columns:
+                    product_cols_to_merge.append(col)
+            
+            if 'product_id' in product_cols_to_merge:
+                sim_data = sim_data.merge(
+                    self.products[product_cols_to_merge],
+                    on='product_id',
+                    how='left'
+                )
+        
+        # Merge with stores data
         if not self.stores.empty:
-            sim_data = sim_data.merge(
-                self.stores[['store_id', 'city', 'channel']],
-                on='store_id',
-                how='left'
-            )
+            store_cols_to_merge = []
+            for col in ['store_id', 'city', 'channel']:
+                if col in self.stores.columns:
+                    store_cols_to_merge.append(col)
+            
+            if 'store_id' in store_cols_to_merge:
+                sim_data = sim_data.merge(
+                    self.stores[store_cols_to_merge],
+                    on='store_id',
+                    how='left'
+                )
         
+        # Fill missing values with defaults
+        if 'base_price_aed' not in sim_data.columns:
+            sim_data['base_price_aed'] = 100
+        else:
+            sim_data['base_price_aed'] = sim_data['base_price_aed'].fillna(100)
+        
+        if 'unit_cost_aed' not in sim_data.columns:
+            sim_data['unit_cost_aed'] = sim_data['base_price_aed'] * 0.5
+        else:
+            sim_data['unit_cost_aed'] = sim_data['unit_cost_aed'].fillna(sim_data['base_price_aed'] * 0.5)
+        
+        if 'category' not in sim_data.columns:
+            sim_data['category'] = 'Other'
+        else:
+            sim_data['category'] = sim_data['category'].fillna('Other')
+        
+        if 'city' not in sim_data.columns:
+            sim_data['city'] = 'Dubai'
+        else:
+            sim_data['city'] = sim_data['city'].fillna('Dubai')
+        
+        if 'channel' not in sim_data.columns:
+            sim_data['channel'] = 'Web'
+        else:
+            sim_data['channel'] = sim_data['channel'].fillna('Web')
+        
+        # Apply filters
         if city_filter != 'All' and 'city' in sim_data.columns:
             sim_data = sim_data[sim_data['city'] == city_filter]
         
@@ -1839,16 +2102,9 @@ class PromoSimulator:
             sim_data = sim_data[sim_data['category'] == category_filter]
         
         if sim_data.empty:
-            results['kpis'] = {
-                'simulated_revenue': 0,
-                'promo_spend': 0,
-                'profit_proxy': 0,
-                'budget_utilization': 0,
-                'stockout_risk_pct': 0,
-                'simulated_units': 0
-            }
             return results
         
+        # Calculate uplift factors
         sim_data['uplift_factor'] = sim_data.apply(
             lambda row: self.calculate_uplift_factor(
                 discount_pct,
@@ -1858,32 +2114,44 @@ class PromoSimulator:
             axis=1
         )
         
+        # Calculate simulated demand
         sim_data['simulated_daily_demand'] = sim_data['baseline_daily_demand'] * sim_data['uplift_factor']
         sim_data['simulated_total_demand'] = sim_data['simulated_daily_demand'] * simulation_days
         
-        if not self.inventory.empty:
-            latest_inventory = self.inventory.sort_values('snapshot_date').groupby(
-                ['product_id', 'store_id']
-            ).last().reset_index()[['product_id', 'store_id', 'stock_on_hand']]
+        # Merge with inventory
+        if not self.inventory.empty and 'product_id' in self.inventory.columns and 'store_id' in self.inventory.columns:
+            if 'snapshot_date' in self.inventory.columns:
+                latest_inventory = self.inventory.sort_values('snapshot_date').groupby(
+                    ['product_id', 'store_id']
+                ).last().reset_index()
+            else:
+                latest_inventory = self.inventory.groupby(
+                    ['product_id', 'store_id']
+                ).first().reset_index()
             
-            sim_data = sim_data.merge(
-                latest_inventory,
-                on=['product_id', 'store_id'],
-                how='left'
-            )
-            sim_data['stock_on_hand'] = sim_data['stock_on_hand'].fillna(0)
+            if 'stock_on_hand' in latest_inventory.columns:
+                sim_data = sim_data.merge(
+                    latest_inventory[['product_id', 'store_id', 'stock_on_hand']],
+                    on=['product_id', 'store_id'],
+                    how='left'
+                )
+                sim_data['stock_on_hand'] = sim_data['stock_on_hand'].fillna(0)
+            else:
+                sim_data['stock_on_hand'] = 1000
         else:
             sim_data['stock_on_hand'] = 1000
         
+        # Calculate constrained demand and stockout flag
         sim_data['constrained_demand'] = sim_data[['simulated_total_demand', 'stock_on_hand']].min(axis=1)
         sim_data['stockout_flag'] = (sim_data['simulated_total_demand'] > sim_data['stock_on_hand']).astype(int)
         
+        # Calculate financial metrics
         sim_data['discounted_price'] = sim_data['base_price_aed'] * (1 - discount_pct / 100)
-        
         sim_data['simulated_revenue'] = sim_data['constrained_demand'] * sim_data['discounted_price']
         sim_data['simulated_cogs'] = sim_data['constrained_demand'] * sim_data['unit_cost_aed']
         sim_data['promo_discount_amount'] = sim_data['constrained_demand'] * sim_data['base_price_aed'] * (discount_pct / 100)
         
+        # Aggregate KPIs
         total_simulated_revenue = sim_data['simulated_revenue'].sum()
         total_cogs = sim_data['simulated_cogs'].sum()
         total_promo_spend = sim_data['promo_discount_amount'].sum()
@@ -1895,6 +2163,7 @@ class PromoSimulator:
         budget_utilization = (total_promo_spend / promo_budget_aed * 100) if promo_budget_aed > 0 else 0
         stockout_risk = (sim_data['stockout_flag'].sum() / len(sim_data) * 100) if len(sim_data) > 0 else 0
         
+        # Update results
         results['kpis'] = {
             'simulated_revenue': total_simulated_revenue,
             'simulated_cogs': total_cogs,
@@ -1905,9 +2174,10 @@ class PromoSimulator:
             'budget_utilization': min(budget_utilization, 100),
             'stockout_risk_pct': stockout_risk,
             'simulated_units': total_units,
-            'products_at_risk': sim_data['stockout_flag'].sum()
+            'products_at_risk': int(sim_data['stockout_flag'].sum())
         }
         
+        # Check constraints
         violations = []
         
         if total_promo_spend > promo_budget_aed:
@@ -1933,17 +2203,23 @@ class PromoSimulator:
             'all_ok': len(violations) == 0
         }
         
-        stockout_items = sim_data[sim_data['stockout_flag'] == 1].nlargest(
-            10, 'simulated_total_demand'
-        )[['product_id', 'store_id', 'simulated_total_demand', 'stock_on_hand', 'category']].copy()
-        stockout_items.columns = ['Product', 'Store', 'Projected Demand', 'Stock Available', 'Category']
+        # Get top stockout items
+        stockout_items = sim_data[sim_data['stockout_flag'] == 1].copy()
+        if not stockout_items.empty:
+            stockout_items = stockout_items.nlargest(10, 'simulated_total_demand')
+            results['top_stockout_items'] = stockout_items[
+                ['product_id', 'store_id', 'simulated_total_demand', 'stock_on_hand', 'category']
+            ].copy()
+            results['top_stockout_items'].columns = ['Product', 'Store', 'Projected Demand', 'Stock Available', 'Category']
+        else:
+            results['top_stockout_items'] = pd.DataFrame(columns=['Product', 'Store', 'Projected Demand', 'Stock Available', 'Category'])
         
-        results['top_stockout_items'] = stockout_items
         results['details'] = sim_data
         
         return results
     
     def get_scenario_comparison(self, discount_scenarios, promo_budget, margin_floor, simulation_days=14):
+        """Generate scenario comparison table."""
         comparisons = []
         
         for discount in discount_scenarios:
@@ -1968,12 +2244,16 @@ class PromoSimulator:
 
 
 # =============================================================================
-# CHART FUNCTIONS
+# CHART FUNCTIONS (FIXED WITH DEFENSIVE CHECKS)
 # =============================================================================
 
 def create_revenue_trend_chart(sales_df):
-    """Create revenue trend chart."""
-    if sales_df.empty:
+    """Create revenue trend chart with defensive checks."""
+    if sales_df is None or sales_df.empty:
+        return None
+    
+    required_cols = ['order_time', 'payment_status', 'qty', 'selling_price_aed']
+    if not all(col in sales_df.columns for col in required_cols):
         return None
     
     df = sales_df.copy()
@@ -1981,12 +2261,20 @@ def create_revenue_trend_chart(sales_df):
     if not pd.api.types.is_datetime64_any_dtype(df['order_time']):
         df['order_time'] = pd.to_datetime(df['order_time'], errors='coerce')
     
+    df = df.dropna(subset=['order_time'])
     df = df[df['payment_status'] == 'Paid']
+    
+    if df.empty:
+        return None
+    
     df['revenue'] = df['qty'] * df['selling_price_aed']
     df['date'] = df['order_time'].dt.date
     
     daily_revenue = df.groupby('date')['revenue'].sum().reset_index()
     daily_revenue.columns = ['Date', 'Revenue']
+    
+    if daily_revenue.empty:
+        return None
     
     fig = px.area(
         daily_revenue,
@@ -2008,16 +2296,30 @@ def create_revenue_trend_chart(sales_df):
 
 
 def create_revenue_by_dimension_chart(sales_df, dimension='city'):
-    """Create revenue by city/channel bar chart."""
-    if sales_df.empty or dimension not in sales_df.columns:
+    """Create revenue by city/channel bar chart with defensive checks."""
+    if sales_df is None or sales_df.empty:
+        return None
+    
+    required_cols = ['payment_status', 'qty', 'selling_price_aed']
+    if not all(col in sales_df.columns for col in required_cols):
+        return None
+    
+    if dimension not in sales_df.columns:
         return None
     
     df = sales_df[sales_df['payment_status'] == 'Paid'].copy()
+    
+    if df.empty:
+        return None
+    
     df['revenue'] = df['qty'] * df['selling_price_aed']
     
     grouped = df.groupby(dimension)['revenue'].sum().reset_index()
     grouped.columns = [dimension.title(), 'Revenue']
     grouped = grouped.sort_values('Revenue', ascending=True)
+    
+    if grouped.empty:
+        return None
     
     fig = px.bar(
         grouped,
@@ -2042,8 +2344,16 @@ def create_revenue_by_dimension_chart(sales_df, dimension='city'):
 
 
 def create_margin_by_category_chart(sales_df, products_df):
-    """Create margin % by category chart."""
-    if sales_df.empty or products_df.empty:
+    """Create margin % by category chart with defensive checks."""
+    if sales_df is None or sales_df.empty or products_df is None or products_df.empty:
+        return None
+    
+    required_sales_cols = ['product_id', 'payment_status', 'qty', 'selling_price_aed']
+    if not all(col in sales_df.columns for col in required_sales_cols):
+        return None
+    
+    required_product_cols = ['product_id', 'unit_cost_aed', 'category']
+    if not all(col in products_df.columns for col in required_product_cols):
         return None
     
     df = sales_df.merge(
@@ -2053,6 +2363,10 @@ def create_margin_by_category_chart(sales_df, products_df):
     )
     
     df = df[df['payment_status'] == 'Paid']
+    
+    if df.empty:
+        return None
+    
     df['revenue'] = df['qty'] * df['selling_price_aed']
     df['cost'] = df['qty'] * df['unit_cost_aed']
     
@@ -2064,7 +2378,9 @@ def create_margin_by_category_chart(sales_df, products_df):
     grouped['margin_pct'] = ((grouped['revenue'] - grouped['cost']) / grouped['revenue'] * 100).round(1)
     grouped = grouped.sort_values('margin_pct', ascending=True)
     
-    # Create color scale based on margin
+    if grouped.empty:
+        return None
+    
     colors = [COLORS['danger'] if x < 20 else COLORS['warning'] if x < 35 else COLORS['success'] 
               for x in grouped['margin_pct']]
     
@@ -2083,8 +2399,12 @@ def create_margin_by_category_chart(sales_df, products_df):
 
 
 def create_scenario_impact_chart(scenario_df):
-    """Create scenario comparison chart."""
-    if scenario_df.empty:
+    """Create scenario comparison chart with defensive checks."""
+    if scenario_df is None or scenario_df.empty:
+        return None
+    
+    required_cols = ['Discount %', 'Profit Proxy', 'Margin %']
+    if not all(col in scenario_df.columns for col in required_cols):
         return None
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -2121,46 +2441,58 @@ def create_scenario_impact_chart(scenario_df):
 
 
 def create_stockout_risk_chart(sim_results):
-    """Create stockout risk by dimension chart."""
-    details = sim_results.get('details', pd.DataFrame())
-    
-    if details.empty:
+    """Create stockout risk by dimension chart with defensive checks."""
+    if sim_results is None:
         return None
     
-    if 'city' in details.columns:
-        risk_by_city = details.groupby('city').agg({
-            'stockout_flag': ['sum', 'count']
-        }).reset_index()
-        risk_by_city.columns = ['City', 'At Risk', 'Total']
-        risk_by_city['Risk %'] = (risk_by_city['At Risk'] / risk_by_city['Total'] * 100).round(1)
-        
-        colors = [COLORS['success'] if x < 20 else COLORS['warning'] if x < 40 else COLORS['danger'] 
-                  for x in risk_by_city['Risk %']]
-        
-        fig = go.Figure(go.Bar(
-            x=risk_by_city['City'],
-            y=risk_by_city['Risk %'],
-            marker_color=colors,
-            text=[f'{x:.1f}%' for x in risk_by_city['Risk %']],
-            textposition='outside'
-        ))
-        
-        fig = style_plotly_chart(fig, '⚠️ Stockout Risk by City', height=350)
-        
-        return fig
+    details = sim_results.get('details', pd.DataFrame())
     
-    return None
+    if details is None or details.empty:
+        return None
+    
+    if 'city' not in details.columns or 'stockout_flag' not in details.columns:
+        return None
+    
+    risk_by_city = details.groupby('city').agg({
+        'stockout_flag': ['sum', 'count']
+    }).reset_index()
+    risk_by_city.columns = ['City', 'At Risk', 'Total']
+    risk_by_city['Risk %'] = (risk_by_city['At Risk'] / risk_by_city['Total'] * 100).round(1)
+    
+    if risk_by_city.empty:
+        return None
+    
+    colors = [COLORS['success'] if x < 20 else COLORS['warning'] if x < 40 else COLORS['danger'] 
+              for x in risk_by_city['Risk %']]
+    
+    fig = go.Figure(go.Bar(
+        x=risk_by_city['City'],
+        y=risk_by_city['Risk %'],
+        marker_color=colors,
+        text=[f'{x:.1f}%' for x in risk_by_city['Risk %']],
+        textposition='outside'
+    ))
+    
+    fig = style_plotly_chart(fig, '⚠️ Stockout Risk by City', height=350)
+    
+    return fig
 
 
 def create_issues_pareto_chart(issues_df):
-    """Create Pareto chart of issue types."""
-    if issues_df.empty:
+    """Create Pareto chart of issue types with defensive checks."""
+    if issues_df is None or issues_df.empty:
+        return None
+    
+    if 'issue_type' not in issues_df.columns:
         return None
     
     issue_counts = issues_df['issue_type'].value_counts().reset_index()
     issue_counts.columns = ['Issue Type', 'Count']
     issue_counts = issue_counts.sort_values('Count', ascending=False)
     issue_counts['Cumulative %'] = (issue_counts['Count'].cumsum() / issue_counts['Count'].sum() * 100).round(1)
+    
+    if issue_counts.empty:
+        return None
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
@@ -2196,13 +2528,22 @@ def create_issues_pareto_chart(issues_df):
 
 
 def create_inventory_distribution_chart(inventory_df):
-    """Create inventory distribution chart."""
-    if inventory_df.empty:
+    """Create inventory distribution chart with defensive checks."""
+    if inventory_df is None or inventory_df.empty:
         return None
     
-    latest = inventory_df.sort_values('snapshot_date').groupby(
-        ['product_id', 'store_id']
-    ).last().reset_index()
+    if 'stock_on_hand' not in inventory_df.columns:
+        return None
+    
+    if 'snapshot_date' in inventory_df.columns and 'product_id' in inventory_df.columns and 'store_id' in inventory_df.columns:
+        latest = inventory_df.sort_values('snapshot_date').groupby(
+            ['product_id', 'store_id']
+        ).last().reset_index()
+    else:
+        latest = inventory_df.copy()
+    
+    if latest.empty:
+        return None
     
     fig = px.histogram(
         latest,
@@ -2223,14 +2564,28 @@ def create_inventory_distribution_chart(inventory_df):
 
 
 def create_channel_performance_chart(sales_df):
-    """Create channel performance donut chart."""
-    if sales_df.empty or 'channel' not in sales_df.columns:
+    """Create channel performance donut chart with defensive checks."""
+    if sales_df is None or sales_df.empty:
+        return None
+    
+    if 'channel' not in sales_df.columns:
+        return None
+    
+    required_cols = ['payment_status', 'qty', 'selling_price_aed']
+    if not all(col in sales_df.columns for col in required_cols):
         return None
     
     df = sales_df[sales_df['payment_status'] == 'Paid'].copy()
+    
+    if df.empty:
+        return None
+    
     df['revenue'] = df['qty'] * df['selling_price_aed']
     
     channel_revenue = df.groupby('channel')['revenue'].sum().reset_index()
+    
+    if channel_revenue.empty:
+        return None
     
     fig = go.Figure(go.Pie(
         labels=channel_revenue['channel'],
@@ -2415,6 +2770,8 @@ def main():
         st.session_state.issues_log = pd.DataFrame()
     if 'raw_data' not in st.session_state:
         st.session_state.raw_data = {}
+    if 'cleaning_stats' not in st.session_state:
+        st.session_state.cleaning_stats = {}
     
     # =========================================================================
     # SIDEBAR
@@ -2461,7 +2818,7 @@ def main():
         promo_budget = st.number_input(
             "Promo Budget (AED)",
             min_value=10000,
-            max_value=500000,
+            max_value=1000000,
             value=100000,
             step=10000,
             help="Maximum promotional spend"
@@ -2478,7 +2835,7 @@ def main():
         
         sim_window = st.selectbox(
             "Simulation Window",
-            [7, 14],
+            [7, 14, 21, 30],
             index=1,
             help="Number of days to simulate"
         )
@@ -2638,33 +2995,41 @@ def main():
                         cleaner = DataCleaner()
                         cleaned = {}
                         
-                        if 'products' in st.session_state.raw_data:
+                        if 'products' in st.session_state.raw_data and 'products_mapping' in st.session_state.raw_data:
                             mapped_products = apply_column_mapping(
                                 st.session_state.raw_data['products'],
                                 st.session_state.raw_data['products_mapping']
                             )
                             cleaned['products'] = cleaner.clean_products(mapped_products)
+                        else:
+                            cleaned['products'] = pd.DataFrame()
                         
-                        if 'stores' in st.session_state.raw_data:
+                        if 'stores' in st.session_state.raw_data and 'stores_mapping' in st.session_state.raw_data:
                             mapped_stores = apply_column_mapping(
                                 st.session_state.raw_data['stores'],
                                 st.session_state.raw_data['stores_mapping']
                             )
                             cleaned['stores'] = cleaner.clean_stores(mapped_stores)
+                        else:
+                            cleaned['stores'] = pd.DataFrame()
                         
-                        if 'sales' in st.session_state.raw_data:
+                        if 'sales' in st.session_state.raw_data and 'sales_mapping' in st.session_state.raw_data:
                             mapped_sales = apply_column_mapping(
                                 st.session_state.raw_data['sales'],
                                 st.session_state.raw_data['sales_mapping']
                             )
                             cleaned['sales'] = cleaner.clean_sales(mapped_sales)
+                        else:
+                            cleaned['sales'] = pd.DataFrame()
                         
-                        if 'inventory' in st.session_state.raw_data:
+                        if 'inventory' in st.session_state.raw_data and 'inventory_mapping' in st.session_state.raw_data:
                             mapped_inventory = apply_column_mapping(
                                 st.session_state.raw_data['inventory'],
                                 st.session_state.raw_data['inventory_mapping']
                             )
                             cleaned['inventory'] = cleaner.clean_inventory(mapped_inventory)
+                        else:
+                            cleaned['inventory'] = pd.DataFrame()
                         
                         st.session_state.cleaned_data = cleaned
                         st.session_state.issues_log = cleaner.get_issues_dataframe()
@@ -2805,15 +3170,20 @@ def main():
                     stores_df[['store_id', 'city', 'channel']],
                     on='store_id',
                     how='left'
-                )
+                ) if not sales_df.empty and not stores_df.empty and 'store_id' in sales_df.columns and 'store_id' in stores_df.columns else sales_df
+                
                 fig = create_revenue_trend_chart(sales_with_store)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Revenue trend chart requires sales data with order_time, qty, and selling_price_aed.', 'warning')
             
             with col2:
                 fig = create_revenue_by_dimension_chart(sales_with_store, 'city')
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Revenue by city chart requires sales data with city dimension.', 'warning')
             
             # Charts Row 2
             col1, col2 = st.columns(2)
@@ -2822,11 +3192,15 @@ def main():
                 fig = create_margin_by_category_chart(sales_df, products_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Margin by category chart requires sales and products data.', 'warning')
             
             with col2:
                 fig = create_scenario_impact_chart(scenario_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Scenario impact chart requires simulation results.', 'warning')
             
             render_subtle_divider()
             
@@ -2862,20 +3236,20 @@ def main():
             
             # Scenario Comparison Table
             render_section_header("📊", "Scenario Comparison")
-            st.dataframe(
-                scenario_df.style.format({
-                    'Simulated Revenue': 'AED {:,.0f}',
-                    'Profit Proxy': 'AED {:,.0f}',
-                    'Margin %': '{:.1f}%',
-                    'Stockout Risk %': '{:.1f}%',
-                    'Budget Used %': '{:.1f}%'
-                }).applymap(
-                    lambda x: 'color: #4ade80' if x == '✓' else 'color: #f87171' if x == '✗' else '',
-                    subset=['Constraints Met']
-                ),
-                use_container_width=True,
-                height=280
-            )
+            if not scenario_df.empty:
+                st.dataframe(
+                    scenario_df.style.format({
+                        'Simulated Revenue': 'AED {:,.0f}',
+                        'Profit Proxy': 'AED {:,.0f}',
+                        'Margin %': '{:.1f}%',
+                        'Stockout Risk %': '{:.1f}%',
+                        'Budget Used %': '{:.1f}%'
+                    }),
+                    use_container_width=True,
+                    height=280
+                )
+            else:
+                render_insight_box('📊', 'No Data', 'Scenario comparison requires simulation to run.', 'warning')
             
             render_subtle_divider()
             
@@ -2928,11 +3302,15 @@ def main():
                 fig = create_stockout_risk_chart(sim_results)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Stockout risk chart requires simulation results with city data.', 'warning')
             
             with col2:
                 fig = create_issues_pareto_chart(issues_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('✅', 'No Issues', 'No data quality issues found!', 'success')
             
             # Charts Row 2
             col1, col2 = st.columns(2)
@@ -2941,16 +3319,21 @@ def main():
                 fig = create_inventory_distribution_chart(inventory_df)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Inventory distribution chart requires inventory data.', 'warning')
             
             with col2:
                 sales_with_store = sales_df.merge(
                     stores_df[['store_id', 'city', 'channel']],
                     on='store_id',
                     how='left'
-                )
+                ) if not sales_df.empty and not stores_df.empty and 'store_id' in sales_df.columns and 'store_id' in stores_df.columns else sales_df
+                
                 fig = create_channel_performance_chart(sales_with_store)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
+                else:
+                    render_insight_box('📊', 'No Data', 'Channel performance chart requires sales data with channel dimension.', 'warning')
             
             render_subtle_divider()
             
@@ -2962,10 +3345,7 @@ def main():
                     top_stockout.style.format({
                         'Projected Demand': '{:.0f}',
                         'Stock Available': '{:.0f}'
-                    }).applymap(
-                        lambda x: 'background-color: rgba(248, 113, 113, 0.2)' if isinstance(x, (int, float)) and x < 50 else '',
-                        subset=['Stock Available']
-                    ),
+                    }),
                     use_container_width=True,
                     height=350
                 )
@@ -2988,18 +3368,18 @@ def main():
                 render_status_box("Total Issues", format_number(len(issues_df)), "warning" if len(issues_df) > 100 else "success")
             
             with col2:
-                if not issues_df.empty:
+                if not issues_df.empty and 'issue_type' in issues_df.columns:
                     top_issue = issues_df['issue_type'].value_counts().index[0]
                     render_status_box("Top Issue Type", top_issue.replace('_', ' ').title(), "primary")
                 else:
                     render_status_box("Top Issue Type", "None", "success")
             
             with col3:
-                tables_cleaned = len(st.session_state.cleaning_stats)
+                tables_cleaned = len(st.session_state.cleaning_stats) if st.session_state.cleaning_stats else 0
                 render_status_box("Tables Cleaned", str(tables_cleaned), "primary")
             
             with col4:
-                total_records = sum(stats.get('original', 0) for stats in st.session_state.cleaning_stats.values())
+                total_records = sum(stats.get('original', 0) for stats in st.session_state.cleaning_stats.values()) if st.session_state.cleaning_stats else 0
                 render_status_box("Records Processed", format_number(total_records), "primary")
             
             # Issues Log Expander
