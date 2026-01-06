@@ -1767,7 +1767,8 @@ def create_gauge_chart(value, title, max_value=100, color="primary"):
 EXPECTED_COLUMNS = {
     'sales': ['transaction_id', 'sku_id', 'store_id', 'quantity_sold', 'unit_price', 'transaction_date'],
     'inventory': ['record_id', 'sku_id', 'store_id', 'stock_level', 'reorder_point', 'reorder_quantity', 'last_updated'],
-    'promotions': ['promotion_id', 'sku_id', 'store_id', 'promotion_type', 'discount_percentage', 'start_date', 'end_date']
+    'promotions': ['promotion_id', 'sku_id', 'store_id', 'promotion_type', 'discount_percentage', 'start_date', 'end_date'],
+    'products': ['sku_id', 'product_name', 'category', 'brand', 'unit_cost', 'supplier_id']
 }
 
 
@@ -1788,28 +1789,50 @@ def validate_dataframe(df, file_type):
 
 
 @st.cache_data(ttl=3600)
-def load_and_process_data(sales_file, inventory_file, promotions_file):
+def load_and_process_data(sales_file, inventory_file, promotions_file, products_file=None):
     """Load and process all data files with caching."""
     try:
         # Load files
         sales_df = pd.read_csv(sales_file)
         inventory_df = pd.read_csv(inventory_file)
         promotions_df = pd.read_csv(promotions_file)
+        products_df = pd.read_csv(products_file) if products_file else None
         
         # Normalize column names
-        sales_df.columns = sales_df.columns.str.lower().str.strip()
-        inventory_df.columns = inventory_df.columns.str.lower().str.strip()
-        promotions_df.columns = promotions_df.columns.str.lower().str.strip()
+        sales_df.columns = sales_df.columns.str.lower().str.strip().str.replace(' ', '_')
+        inventory_df.columns = inventory_df.columns.str.lower().str.strip().str.replace(' ', '_')
+        promotions_df.columns = promotions_df.columns.str.lower().str.strip().str.replace(' ', '_')
+        if products_df is not None:
+            products_df.columns = products_df.columns.str.lower().str.strip().str.replace(' ', '_')
         
-        # Validate
-        for df, name in [(sales_df, 'sales'), (inventory_df, 'inventory'), (promotions_df, 'promotions')]:
-            valid, msg = validate_dataframe(df, name)
-            if not valid:
-                return None, None, None, f"{name}: {msg}"
+        # Validate required columns (flexible validation)
+        def validate_df(df, name, required_cols):
+            actual = set(df.columns)
+            missing = set(required_cols) - actual
+            if missing:
+                return False, f"Missing columns: {', '.join(missing)}"
+            return True, "Valid"
+        
+        # Basic validation
+        sales_valid, sales_msg = validate_df(sales_df, 'sales', ['sku_id', 'store_id', 'quantity_sold'])
+        inventory_valid, inv_msg = validate_df(inventory_df, 'inventory', ['sku_id', 'store_id', 'stock_level'])
+        promo_valid, promo_msg = validate_df(promotions_df, 'promotions', ['sku_id', 'discount_percentage'])
+        
+        if not sales_valid:
+            return None, None, None, None, f"Sales: {sales_msg}"
+        if not inventory_valid:
+            return None, None, None, None, f"Inventory: {inv_msg}"
+        if not promo_valid:
+            return None, None, None, None, f"Promotions: {promo_msg}"
         
         # Process sales dates
+        date_cols = ['transaction_date', 'date', 'sale_date', 'order_date']
+        for col in date_cols:
+            if col in sales_df.columns:
+                sales_df['transaction_date'] = pd.to_datetime(sales_df[col], errors='coerce')
+                break
+        
         if 'transaction_date' in sales_df.columns:
-            sales_df['transaction_date'] = pd.to_datetime(sales_df['transaction_date'], errors='coerce')
             sales_df['date'] = sales_df['transaction_date'].dt.date
             sales_df['month'] = sales_df['transaction_date'].dt.to_period('M').astype(str)
             sales_df['week'] = sales_df['transaction_date'].dt.isocalendar().week
@@ -1827,9 +1850,14 @@ def load_and_process_data(sales_file, inventory_file, promotions_file):
         # Calculate revenue
         if 'quantity_sold' in sales_df.columns and 'unit_price' in sales_df.columns:
             sales_df['revenue'] = sales_df['quantity_sold'] * sales_df['unit_price']
+        elif 'quantity_sold' in sales_df.columns:
+            sales_df['revenue'] = sales_df['quantity_sold'] * 10  # Default price
         
         # Calculate inventory metrics
-        if 'stock_level' in inventory_df.columns and 'reorder_point' in inventory_df.columns:
+        if 'stock_level' in inventory_df.columns:
+            if 'reorder_point' not in inventory_df.columns:
+                inventory_df['reorder_point'] = inventory_df['stock_level'] * 0.3
+            
             inventory_df['stock_status'] = inventory_df.apply(
                 lambda x: 'Critical' if x['stock_level'] <= x['reorder_point'] * 0.5
                 else 'Low' if x['stock_level'] <= x['reorder_point']
@@ -1837,11 +1865,22 @@ def load_and_process_data(sales_file, inventory_file, promotions_file):
             )
             inventory_df['stock_ratio'] = inventory_df['stock_level'] / inventory_df['reorder_point'].replace(0, 1)
         
-        return sales_df, inventory_df, promotions_df, None
+        # Merge product info if available
+        if products_df is not None:
+            if 'category' in products_df.columns and 'category' not in sales_df.columns:
+                sales_df = sales_df.merge(products_df[['sku_id', 'category', 'brand']].drop_duplicates(), 
+                                         on='sku_id', how='left')
+            if 'category' in products_df.columns and 'category' not in inventory_df.columns:
+                inventory_df = inventory_df.merge(products_df[['sku_id', 'category', 'brand']].drop_duplicates(), 
+                                                  on='sku_id', how='left')
+            if 'category' in products_df.columns and 'category' not in promotions_df.columns:
+                promotions_df = promotions_df.merge(products_df[['sku_id', 'category', 'brand']].drop_duplicates(), 
+                                                    on='sku_id', how='left')
+        
+        return sales_df, inventory_df, promotions_df, products_df, None
         
     except Exception as e:
-        return None, None, None, str(e)
-
+        return None, None, None, None, str(e)
 
 # =============================================================================
 # SAMPLE DATA GENERATOR (COMPREHENSIVE) - FIXED
@@ -4300,61 +4339,75 @@ def render_sidebar():
             st.markdown("### 📤 Upload Data Files")
             st.caption("Upload CSV files with the required columns")
             
+            # 4 FILE UPLOADERS
             sales_file = st.file_uploader(
                 "📈 Sales Data",
                 type=['csv'],
                 key='sales_upload',
-                help="Required columns: transaction_id, sku_id, store_id, quantity_sold, unit_price, transaction_date"
+                help="Required: transaction_id, sku_id, store_id, quantity_sold, unit_price, transaction_date"
             )
             
             inventory_file = st.file_uploader(
                 "📦 Inventory Data",
                 type=['csv'],
                 key='inventory_upload',
-                help="Required columns: record_id, sku_id, store_id, stock_level, reorder_point, reorder_quantity, last_updated"
+                help="Required: record_id, sku_id, store_id, stock_level, reorder_point, reorder_quantity"
             )
             
             promotions_file = st.file_uploader(
                 "🎯 Promotions Data",
                 type=['csv'],
                 key='promotions_upload',
-                help="Required columns: promotion_id, sku_id, store_id, promotion_type, discount_percentage, start_date, end_date"
+                help="Required: promotion_id, sku_id, store_id, promotion_type, discount_percentage, start_date, end_date"
             )
             
+            products_file = st.file_uploader(
+                "🏷️ Products/SKU Data",
+                type=['csv'],
+                key='products_upload',
+                help="Required: sku_id, product_name, category, brand, unit_cost"
+            )
+            
+            # Check minimum required files (3 core + 1 optional)
             if sales_file and inventory_file and promotions_file:
                 with st.spinner("Loading and validating data..."):
-                    sales_df, inventory_df, promotions_df, error = load_and_process_data(
-                        sales_file, inventory_file, promotions_file
+                    sales_df, inventory_df, promotions_df, products_df, error = load_and_process_data(
+                        sales_file, inventory_file, promotions_file, products_file
                     )
                 
                 if error:
                     st.error(f"❌ Error: {error}")
-                    return None, None, None
+                    return None, None, None, None
                 
                 st.success("✅ All files loaded successfully!")
                 
                 # Data summary
-                with st.expander("📊 Data Summary"):
+                with st.expander("📊 Data Summary", expanded=False):
                     st.markdown(f"**Sales:** {len(sales_df):,} records")
                     st.markdown(f"**Inventory:** {len(inventory_df):,} records")
                     st.markdown(f"**Promotions:** {len(promotions_df):,} records")
+                    if products_df is not None:
+                        st.markdown(f"**Products:** {len(products_df):,} records")
                 
-                return sales_df, inventory_df, promotions_df
+                return sales_df, inventory_df, promotions_df, products_df
             
             else:
-                st.info("📌 Please upload all three required files")
+                st.info("📌 Please upload at least Sales, Inventory, and Promotions files")
                 
                 with st.expander("📋 Expected Data Schema"):
-                    st.markdown("**Sales Data:**")
+                    st.markdown("**Sales Data (Required):**")
                     st.code("transaction_id, sku_id, store_id, quantity_sold, unit_price, transaction_date")
                     
-                    st.markdown("**Inventory Data:**")
+                    st.markdown("**Inventory Data (Required):**")
                     st.code("record_id, sku_id, store_id, stock_level, reorder_point, reorder_quantity, last_updated")
                     
-                    st.markdown("**Promotions Data:**")
+                    st.markdown("**Promotions Data (Required):**")
                     st.code("promotion_id, sku_id, store_id, promotion_type, discount_percentage, start_date, end_date")
+                    
+                    st.markdown("**Products Data (Optional):**")
+                    st.code("sku_id, product_name, category, brand, unit_cost, supplier_id")
                 
-                return None, None, None
+                return None, None, None, None
         
         else:
             # Use sample data
@@ -4364,6 +4417,7 @@ def render_sidebar():
             
             with st.spinner("Generating sample data..."):
                 sales_df, inventory_df, promotions_df = generate_sample_data()
+                products_df = None  # Sample data generates products info within sales_df
             
             # Data summary
             with st.expander("📊 Sample Data Info", expanded=False):
@@ -4375,12 +4429,11 @@ def render_sidebar():
                 st.markdown(f"**Categories:** {sales_df['category'].nunique()}")
                 st.markdown(f"**Regions:** {sales_df['region'].nunique()}")
             
-            return sales_df, inventory_df, promotions_df
+            return sales_df, inventory_df, promotions_df, products_df
         
         # Footer info
         st.markdown("---")
         st.markdown('<div style="text-align: center; color: #71717a; font-size: 0.75rem; padding: 10px 0;"><div>Version 2.0 Premium</div><div>© 2024 Data Rescue Team</div></div>', unsafe_allow_html=True)
-
 
 # =============================================================================
 # MAIN APPLICATION
@@ -4396,11 +4449,11 @@ def main():
     # Load premium CSS
     load_premium_css()
     
-    # Render sidebar and get data
+    # Render sidebar and get data (now returns 4 values)
     data = render_sidebar()
     
     # Check if data is available
-    if data[0] is None:
+    if data is None or data[0] is None:
         # Show welcome screen
         render_hero_header()
         
@@ -4417,22 +4470,25 @@ def main():
         st.markdown("")
         st.markdown("### ✨ Key Features")
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            render_insight_box("📈", "Sales Analytics", "Deep dive into revenue trends, category performance, and regional insights with interactive filters.", "success")
+            render_insight_box("📈", "Sales Analytics", "Deep dive into revenue trends, category performance, and regional insights.", "success")
         
         with col2:
-            render_insight_box("📦", "Inventory Health", "Monitor stock levels, identify stockout risks, and optimize replenishment strategies.", "warning")
+            render_insight_box("📦", "Inventory Health", "Monitor stock levels, identify stockout risks, and optimize replenishment.", "warning")
         
         with col3:
-            render_insight_box("🧪", "What-If Simulator", "Simulate promotional scenarios and predict outcomes with AI-powered recommendations.", "accent")
+            render_insight_box("🧹", "Data Cleaning", "Clean, validate, and transform your data with automated tools.", "accent")
+        
+        with col4:
+            render_insight_box("🧪", "What-If Simulator", "Simulate promotions and predict outcomes with AI recommendations.", "primary")
         
         render_footer()
         return
     
-    # Unpack data
-    sales_df, inventory_df, promotions_df = data
+    # Unpack data (4 values now)
+    sales_df, inventory_df, promotions_df, products_df = data
     
     # Render main dashboard
     render_hero_header()
@@ -4442,8 +4498,9 @@ def main():
     
     render_divider()
     
-    # Main navigation tabs
+    # Main navigation tabs - NOW INCLUDES DATA CLEANING
     tabs = st.tabs([
+        "🧹 Data Cleaning",
         "📈 Sales Analytics",
         "📦 Inventory Health",
         "🎯 Promotions",
@@ -4453,21 +4510,24 @@ def main():
     ])
     
     with tabs[0]:
-        render_sales_analysis(sales_df)
+        render_data_cleaning(sales_df, inventory_df, promotions_df, products_df)
     
     with tabs[1]:
-        render_inventory_analysis(inventory_df, sales_df)
+        render_sales_analysis(sales_df)
     
     with tabs[2]:
-        render_promotions_analysis(promotions_df, sales_df)
+        render_inventory_analysis(inventory_df, sales_df)
     
     with tabs[3]:
-        render_promo_simulator(sales_df, inventory_df, promotions_df)
+        render_promotions_analysis(promotions_df, sales_df)
     
     with tabs[4]:
-        render_store_performance(sales_df, inventory_df)
+        render_promo_simulator(sales_df, inventory_df, promotions_df)
     
     with tabs[5]:
+        render_store_performance(sales_df, inventory_df)
+    
+    with tabs[6]:
         render_time_analysis(sales_df)
     
     # Footer
@@ -4480,4 +4540,731 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# =============================================================================
+# DATA CLEANING & QUALITY SECTION
+# =============================================================================
+
+def render_data_cleaning(sales_df, inventory_df, promotions_df, products_df=None):
+    """Render comprehensive data cleaning and quality analysis."""
+    render_section_header("🧹", "Data Cleaning & Quality", "Analyze data quality, handle missing values, detect outliers, and clean your datasets")
+    
+    # =========================================================================
+    # DATA SOURCE SELECTOR
+    # =========================================================================
+    st.markdown("#### 🎛️ Select Dataset to Analyze")
+    
+    col1, col2, col3 = st.columns([2, 2, 2])
+    
+    with col1:
+        available_datasets = ["Sales Data", "Inventory Data", "Promotions Data"]
+        if products_df is not None:
+            available_datasets.append("Products Data")
+        
+        selected_dataset = st.selectbox(
+            "📊 Dataset",
+            available_datasets,
+            key="cleaning_dataset"
+        )
+    
+    with col2:
+        cleaning_action = st.selectbox(
+            "🔧 Analysis Type",
+            ["Data Overview", "Missing Values", "Duplicates", "Outliers", "Data Types", "Value Distribution", "Auto Clean"],
+            key="cleaning_action"
+        )
+    
+    with col3:
+        export_cleaned = st.checkbox("📥 Enable Export", key="export_cleaned")
+    
+    st.markdown("")
+    
+    # Select the appropriate dataframe
+    if selected_dataset == "Sales Data":
+        df = sales_df.copy()
+        df_name = "sales"
+    elif selected_dataset == "Inventory Data":
+        df = inventory_df.copy()
+        df_name = "inventory"
+    elif selected_dataset == "Promotions Data":
+        df = promotions_df.copy()
+        df_name = "promotions"
+    else:
+        df = products_df.copy() if products_df is not None else pd.DataFrame()
+        df_name = "products"
+    
+    if df.empty:
+        render_empty_state("📊", "No Data Available", "The selected dataset is empty.")
+        return df, None, None, None
+    
+    # =========================================================================
+    # DATA QUALITY SCORE
+    # =========================================================================
+    
+    # Calculate quality metrics
+    total_cells = df.shape[0] * df.shape[1]
+    missing_cells = df.isnull().sum().sum()
+    duplicate_rows = df.duplicated().sum()
+    completeness = ((total_cells - missing_cells) / total_cells * 100) if total_cells > 0 else 0
+    uniqueness = ((len(df) - duplicate_rows) / len(df) * 100) if len(df) > 0 else 0
+    
+    # Overall quality score
+    quality_score = (completeness * 0.5 + uniqueness * 0.3 + 20)  # Base 20 for validity
+    quality_score = min(100, quality_score)
+    
+    # Quality KPIs
+    quality_kpis = [
+        {"icon": "📊", "value": f"{len(df):,}", "label": "Total Rows", "type": "primary"},
+        {"icon": "📋", "value": f"{len(df.columns)}", "label": "Columns", "type": "accent"},
+        {"icon": "❓", "value": f"{missing_cells:,}", "label": "Missing Values", "type": "warning" if missing_cells > 0 else "success"},
+        {"icon": "👥", "value": f"{duplicate_rows:,}", "label": "Duplicates", "type": "danger" if duplicate_rows > 0 else "success"},
+        {"icon": "✅", "value": f"{completeness:.1f}%", "label": "Completeness", "type": "success" if completeness > 95 else "warning"},
+        {"icon": "⭐", "value": f"{quality_score:.0f}/100", "label": "Quality Score", "type": "success" if quality_score > 80 else "warning"},
+    ]
+    render_kpi_row(quality_kpis)
+    
+    render_divider_subtle()
+    
+    # Store cleaned dataframe
+    cleaned_df = df.copy()
+    cleaning_log = []
+    
+    # =========================================================================
+    # DATA OVERVIEW
+    # =========================================================================
+    if cleaning_action == "Data Overview":
+        render_chart_title("📋 Dataset Overview", "📊")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("##### Column Information")
+            
+            col_info = pd.DataFrame({
+                'Column': df.columns,
+                'Type': df.dtypes.astype(str),
+                'Non-Null': df.count().values,
+                'Null': df.isnull().sum().values,
+                'Unique': df.nunique().values
+            })
+            col_info['Null %'] = (col_info['Null'] / len(df) * 100).round(2)
+            
+            st.dataframe(col_info, use_container_width=True, hide_index=True, height=400)
+        
+        with col2:
+            st.markdown("##### Data Sample")
+            st.dataframe(df.head(10), use_container_width=True, height=400)
+        
+        # Column type distribution
+        render_chart_title("Data Type Distribution", "📊")
+        
+        type_counts = df.dtypes.astype(str).value_counts().reset_index()
+        type_counts.columns = ['Data Type', 'Count']
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig = px.pie(type_counts, values='Count', names='Data Type',
+                        color_discrete_sequence=get_chart_colors(), hole=0.5)
+            fig = apply_chart_style(fig, height=300)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Memory usage
+            memory_usage = df.memory_usage(deep=True)
+            total_memory = memory_usage.sum()
+            
+            st.markdown("##### Memory Usage")
+            st.markdown(f'<div class="status-card"><div class="status-label">Total Memory</div><div class="status-value primary">{total_memory / 1024 / 1024:.2f} MB</div></div>', unsafe_allow_html=True)
+            
+            st.markdown("")
+            st.markdown("##### Quick Stats")
+            
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                st.dataframe(df[numeric_cols].describe().round(2), use_container_width=True)
+    
+    # =========================================================================
+    # MISSING VALUES ANALYSIS
+    # =========================================================================
+    elif cleaning_action == "Missing Values":
+        render_chart_title("❓ Missing Values Analysis", "🔍")
+        
+        # Missing values summary
+        missing_df = pd.DataFrame({
+            'Column': df.columns,
+            'Missing': df.isnull().sum().values,
+            'Present': df.count().values,
+            'Missing %': (df.isnull().sum().values / len(df) * 100).round(2)
+        })
+        missing_df = missing_df.sort_values('Missing', ascending=False)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Bar chart of missing values
+            fig = px.bar(missing_df[missing_df['Missing'] > 0], 
+                        x='Column', y='Missing',
+                        color='Missing %',
+                        color_continuous_scale=['#10b981', '#f59e0b', '#ef4444'])
+            fig = apply_chart_style(fig, height=350, show_legend=False)
+            fig.update_layout(xaxis_title="", yaxis_title="Missing Count")
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Missing pattern heatmap (sample)
+            sample_size = min(100, len(df))
+            sample_df = df.sample(sample_size) if len(df) > sample_size else df
+            
+            missing_matrix = sample_df.isnull().astype(int)
+            
+            fig2 = px.imshow(missing_matrix.T, 
+                           labels=dict(x="Row", y="Column", color="Missing"),
+                           color_continuous_scale=['#1a1a2e', '#ef4444'],
+                           aspect='auto')
+            fig2 = apply_chart_style(fig2, height=350)
+            fig2.update_layout(title="Missing Pattern (Sample)")
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        # Missing values table
+        st.markdown("##### Missing Values by Column")
+        st.dataframe(missing_df, use_container_width=True, hide_index=True)
+        
+        render_divider_subtle()
+        
+        # Handle missing values
+        st.markdown("### 🔧 Handle Missing Values")
+        
+        cols_with_missing = missing_df[missing_df['Missing'] > 0]['Column'].tolist()
+        
+        if cols_with_missing:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                target_col = st.selectbox(
+                    "Select Column",
+                    cols_with_missing,
+                    key="missing_target_col"
+                )
+            
+            with col2:
+                fill_method = st.selectbox(
+                    "Fill Method",
+                    ["Drop Rows", "Fill with Mean", "Fill with Median", "Fill with Mode", "Fill with Zero", "Fill with Custom", "Forward Fill", "Backward Fill"],
+                    key="fill_method"
+                )
+            
+            with col3:
+                if fill_method == "Fill with Custom":
+                    custom_value = st.text_input("Custom Value", key="custom_fill_value")
+                else:
+                    custom_value = None
+            
+            if st.button("🔄 Apply Fix", key="apply_missing_fix"):
+                if fill_method == "Drop Rows":
+                    cleaned_df = cleaned_df.dropna(subset=[target_col])
+                    cleaning_log.append(f"Dropped {df[target_col].isnull().sum()} rows with missing {target_col}")
+                elif fill_method == "Fill with Mean":
+                    if pd.api.types.is_numeric_dtype(cleaned_df[target_col]):
+                        fill_val = cleaned_df[target_col].mean()
+                        cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
+                        cleaning_log.append(f"Filled {target_col} missing values with mean: {fill_val:.2f}")
+                elif fill_method == "Fill with Median":
+                    if pd.api.types.is_numeric_dtype(cleaned_df[target_col]):
+                        fill_val = cleaned_df[target_col].median()
+                        cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
+                        cleaning_log.append(f"Filled {target_col} missing values with median: {fill_val:.2f}")
+                elif fill_method == "Fill with Mode":
+                    fill_val = cleaned_df[target_col].mode().iloc[0] if len(cleaned_df[target_col].mode()) > 0 else None
+                    if fill_val is not None:
+                        cleaned_df[target_col] = cleaned_df[target_col].fillna(fill_val)
+                        cleaning_log.append(f"Filled {target_col} missing values with mode: {fill_val}")
+                elif fill_method == "Fill with Zero":
+                    cleaned_df[target_col] = cleaned_df[target_col].fillna(0)
+                    cleaning_log.append(f"Filled {target_col} missing values with 0")
+                elif fill_method == "Fill with Custom" and custom_value:
+                    cleaned_df[target_col] = cleaned_df[target_col].fillna(custom_value)
+                    cleaning_log.append(f"Filled {target_col} missing values with: {custom_value}")
+                elif fill_method == "Forward Fill":
+                    cleaned_df[target_col] = cleaned_df[target_col].ffill()
+                    cleaning_log.append(f"Forward filled {target_col} missing values")
+                elif fill_method == "Backward Fill":
+                    cleaned_df[target_col] = cleaned_df[target_col].bfill()
+                    cleaning_log.append(f"Backward filled {target_col} missing values")
+                
+                st.success(f"✅ Applied: {cleaning_log[-1] if cleaning_log else 'Fix applied'}")
+        else:
+            render_insight_box("✅", "No Missing Values", "This dataset has no missing values. Great data quality!", "success")
+    
+    # =========================================================================
+    # DUPLICATES ANALYSIS
+    # =========================================================================
+    elif cleaning_action == "Duplicates":
+        render_chart_title("👥 Duplicate Analysis", "🔍")
+        
+        # Find duplicates
+        duplicate_count = df.duplicated().sum()
+        duplicate_rows = df[df.duplicated(keep=False)]
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            render_status_card("Total Duplicates", f"{duplicate_count:,}", "danger" if duplicate_count > 0 else "success")
+        
+        with col2:
+            render_status_card("Unique Rows", f"{len(df) - duplicate_count:,}", "success")
+        
+        with col3:
+            dup_pct = (duplicate_count / len(df) * 100) if len(df) > 0 else 0
+            render_status_card("Duplicate %", f"{dup_pct:.2f}%", "warning" if dup_pct > 5 else "success")
+        
+        st.markdown("")
+        
+        # Subset duplicate check
+        st.markdown("##### Check Duplicates by Columns")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            subset_cols = st.multiselect(
+                "Select columns to check",
+                df.columns.tolist(),
+                default=df.columns[:3].tolist() if len(df.columns) >= 3 else df.columns.tolist(),
+                key="dup_subset_cols"
+            )
+        
+        with col2:
+            if subset_cols:
+                subset_dups = df.duplicated(subset=subset_cols).sum()
+                st.metric("Duplicates in subset", f"{subset_dups:,}")
+        
+        if duplicate_count > 0:
+            st.markdown("##### Duplicate Rows Sample")
+            st.dataframe(duplicate_rows.head(20), use_container_width=True, height=300)
+            
+            render_divider_subtle()
+            
+            # Remove duplicates
+            st.markdown("### 🔧 Remove Duplicates")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                keep_option = st.selectbox(
+                    "Keep which occurrence?",
+                    ["First", "Last", "None (Remove All)"],
+                    key="dup_keep"
+                )
+            
+            with col2:
+                dup_subset = st.multiselect(
+                    "Based on columns (empty = all)",
+                    df.columns.tolist(),
+                    key="dup_remove_subset"
+                )
+            
+            if st.button("🗑️ Remove Duplicates", key="remove_dups"):
+                keep_val = keep_option.lower().split()[0] if keep_option != "None (Remove All)" else False
+                subset_val = dup_subset if dup_subset else None
+                
+                original_len = len(cleaned_df)
+                cleaned_df = cleaned_df.drop_duplicates(subset=subset_val, keep=keep_val)
+                removed = original_len - len(cleaned_df)
+                
+                cleaning_log.append(f"Removed {removed} duplicate rows")
+                st.success(f"✅ Removed {removed} duplicate rows")
+        else:
+            render_insight_box("✅", "No Duplicates Found", "This dataset has no duplicate rows.", "success")
+    
+    # =========================================================================
+    # OUTLIERS ANALYSIS
+    # =========================================================================
+    elif cleaning_action == "Outliers":
+        render_chart_title("📈 Outlier Detection", "🔍")
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        if not numeric_cols:
+            render_empty_state("📊", "No Numeric Columns", "Outlier detection requires numeric columns.")
+            return cleaned_df, cleaning_log, None, None
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            outlier_col = st.selectbox(
+                "Select Column",
+                numeric_cols,
+                key="outlier_col"
+            )
+        
+        with col2:
+            outlier_method = st.selectbox(
+                "Detection Method",
+                ["IQR (Interquartile Range)", "Z-Score", "Percentile"],
+                key="outlier_method"
+            )
+        
+        with col3:
+            if outlier_method == "IQR (Interquartile Range)":
+                iqr_multiplier = st.slider("IQR Multiplier", 1.0, 3.0, 1.5, 0.1, key="iqr_mult")
+            elif outlier_method == "Z-Score":
+                z_threshold = st.slider("Z-Score Threshold", 1.0, 4.0, 3.0, 0.1, key="z_thresh")
+            else:
+                lower_pct = st.slider("Lower Percentile", 0, 10, 1, key="lower_pct")
+                upper_pct = st.slider("Upper Percentile", 90, 100, 99, key="upper_pct")
+        
+        # Calculate outliers
+        col_data = df[outlier_col].dropna()
+        
+        if outlier_method == "IQR (Interquartile Range)":
+            Q1 = col_data.quantile(0.25)
+            Q3 = col_data.quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - iqr_multiplier * IQR
+            upper_bound = Q3 + iqr_multiplier * IQR
+        elif outlier_method == "Z-Score":
+            mean = col_data.mean()
+            std = col_data.std()
+            lower_bound = mean - z_threshold * std
+            upper_bound = mean + z_threshold * std
+        else:
+            lower_bound = col_data.quantile(lower_pct / 100)
+            upper_bound = col_data.quantile(upper_pct / 100)
+        
+        outliers = df[(df[outlier_col] < lower_bound) | (df[outlier_col] > upper_bound)]
+        outlier_count = len(outliers)
+        
+        # Display results
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Box plot
+            fig = px.box(df, y=outlier_col, color_discrete_sequence=['#6366f1'])
+            fig.add_hline(y=lower_bound, line_dash="dash", line_color="#ef4444",
+                         annotation_text=f"Lower: {lower_bound:.2f}")
+            fig.add_hline(y=upper_bound, line_dash="dash", line_color="#ef4444",
+                         annotation_text=f"Upper: {upper_bound:.2f}")
+            fig = apply_chart_style(fig, height=350)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Histogram with outlier bounds
+            fig2 = px.histogram(df, x=outlier_col, nbins=50, color_discrete_sequence=['#6366f1'])
+            fig2.add_vline(x=lower_bound, line_dash="dash", line_color="#ef4444")
+            fig2.add_vline(x=upper_bound, line_dash="dash", line_color="#ef4444")
+            fig2 = apply_chart_style(fig2, height=350)
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        # Outlier stats
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            render_status_card("Outliers Found", f"{outlier_count:,}", "danger" if outlier_count > 0 else "success")
+        with col2:
+            render_status_card("Outlier %", f"{(outlier_count/len(df)*100):.2f}%", "warning" if outlier_count > 0 else "success")
+        with col3:
+            render_status_card("Lower Bound", f"{lower_bound:.2f}", "primary")
+        with col4:
+            render_status_card("Upper Bound", f"{upper_bound:.2f}", "primary")
+        
+        if outlier_count > 0:
+            st.markdown("##### Outlier Rows")
+            st.dataframe(outliers.head(20), use_container_width=True, height=250)
+            
+            render_divider_subtle()
+            
+            # Handle outliers
+            st.markdown("### 🔧 Handle Outliers")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                outlier_action = st.selectbox(
+                    "Action",
+                    ["Remove Outliers", "Cap/Clip Values", "Replace with Mean", "Replace with Median"],
+                    key="outlier_action"
+                )
+            
+            if st.button("🔄 Apply Outlier Fix", key="apply_outlier_fix"):
+                if outlier_action == "Remove Outliers":
+                    original_len = len(cleaned_df)
+                    cleaned_df = cleaned_df[(cleaned_df[outlier_col] >= lower_bound) & (cleaned_df[outlier_col] <= upper_bound)]
+                    removed = original_len - len(cleaned_df)
+                    cleaning_log.append(f"Removed {removed} outlier rows from {outlier_col}")
+                elif outlier_action == "Cap/Clip Values":
+                    cleaned_df[outlier_col] = cleaned_df[outlier_col].clip(lower_bound, upper_bound)
+                    cleaning_log.append(f"Capped {outlier_col} values to [{lower_bound:.2f}, {upper_bound:.2f}]")
+                elif outlier_action == "Replace with Mean":
+                    mean_val = cleaned_df[outlier_col].mean()
+                    cleaned_df.loc[(cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound), outlier_col] = mean_val
+                    cleaning_log.append(f"Replaced {outlier_col} outliers with mean: {mean_val:.2f}")
+                elif outlier_action == "Replace with Median":
+                    median_val = cleaned_df[outlier_col].median()
+                    cleaned_df.loc[(cleaned_df[outlier_col] < lower_bound) | (cleaned_df[outlier_col] > upper_bound), outlier_col] = median_val
+                    cleaning_log.append(f"Replaced {outlier_col} outliers with median: {median_val:.2f}")
+                
+                st.success(f"✅ Applied: {cleaning_log[-1]}")
+    
+    # =========================================================================
+    # DATA TYPES ANALYSIS
+    # =========================================================================
+    elif cleaning_action == "Data Types":
+        render_chart_title("🔤 Data Type Analysis", "🔍")
+        
+        # Current types
+        type_info = pd.DataFrame({
+            'Column': df.columns,
+            'Current Type': df.dtypes.astype(str),
+            'Sample Value': [str(df[col].iloc[0]) if len(df) > 0 else 'N/A' for col in df.columns],
+            'Unique Values': df.nunique().values
+        })
+        
+        st.markdown("##### Current Data Types")
+        st.dataframe(type_info, use_container_width=True, hide_index=True)
+        
+        render_divider_subtle()
+        
+        # Convert types
+        st.markdown("### 🔧 Convert Data Types")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            convert_col = st.selectbox(
+                "Select Column",
+                df.columns.tolist(),
+                key="convert_col"
+            )
+        
+        with col2:
+            target_type = st.selectbox(
+                "Convert To",
+                ["string", "integer", "float", "datetime", "category", "boolean"],
+                key="target_type"
+            )
+        
+        with col3:
+            if target_type == "datetime":
+                date_format = st.text_input("Date Format (optional)", placeholder="%Y-%m-%d", key="date_format")
+        
+        if st.button("🔄 Convert Type", key="convert_type"):
+            try:
+                if target_type == "string":
+                    cleaned_df[convert_col] = cleaned_df[convert_col].astype(str)
+                elif target_type == "integer":
+                    cleaned_df[convert_col] = pd.to_numeric(cleaned_df[convert_col], errors='coerce').astype('Int64')
+                elif target_type == "float":
+                    cleaned_df[convert_col] = pd.to_numeric(cleaned_df[convert_col], errors='coerce')
+                elif target_type == "datetime":
+                    if date_format:
+                        cleaned_df[convert_col] = pd.to_datetime(cleaned_df[convert_col], format=date_format, errors='coerce')
+                    else:
+                        cleaned_df[convert_col] = pd.to_datetime(cleaned_df[convert_col], errors='coerce')
+                elif target_type == "category":
+                    cleaned_df[convert_col] = cleaned_df[convert_col].astype('category')
+                elif target_type == "boolean":
+                    cleaned_df[convert_col] = cleaned_df[convert_col].astype(bool)
+                
+                cleaning_log.append(f"Converted {convert_col} to {target_type}")
+                st.success(f"✅ Converted {convert_col} to {target_type}")
+            except Exception as e:
+                st.error(f"❌ Conversion failed: {str(e)}")
+    
+    # =========================================================================
+    # VALUE DISTRIBUTION
+    # =========================================================================
+    elif cleaning_action == "Value Distribution":
+        render_chart_title("📊 Value Distribution Analysis", "🔍")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            dist_col = st.selectbox(
+                "Select Column",
+                df.columns.tolist(),
+                key="dist_col"
+            )
+        
+        with col2:
+            chart_type = st.selectbox(
+                "Chart Type",
+                ["Histogram", "Bar Chart", "Box Plot", "Violin Plot"],
+                key="dist_chart_type"
+            )
+        
+        col_data = df[dist_col]
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if pd.api.types.is_numeric_dtype(col_data):
+                if chart_type == "Histogram":
+                    fig = px.histogram(df, x=dist_col, nbins=30, color_discrete_sequence=['#6366f1'])
+                elif chart_type == "Box Plot":
+                    fig = px.box(df, y=dist_col, color_discrete_sequence=['#6366f1'])
+                elif chart_type == "Violin Plot":
+                    fig = px.violin(df, y=dist_col, color_discrete_sequence=['#6366f1'], box=True)
+                else:
+                    fig = px.histogram(df, x=dist_col, nbins=30, color_discrete_sequence=['#6366f1'])
+            else:
+                value_counts = col_data.value_counts().head(20).reset_index()
+                value_counts.columns = [dist_col, 'Count']
+                fig = px.bar(value_counts, x=dist_col, y='Count', color_discrete_sequence=['#6366f1'])
+            
+            fig = apply_chart_style(fig, height=350)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Statistics
+            st.markdown("##### Column Statistics")
+            
+            if pd.api.types.is_numeric_dtype(col_data):
+                stats = col_data.describe()
+                stats_df = pd.DataFrame({
+                    'Statistic': stats.index,
+                    'Value': stats.values.round(4)
+                })
+                st.dataframe(stats_df, use_container_width=True, hide_index=True)
+            else:
+                value_counts = col_data.value_counts().head(10).reset_index()
+                value_counts.columns = ['Value', 'Count']
+                value_counts['Percentage'] = (value_counts['Count'] / len(col_data) * 100).round(2)
+                st.dataframe(value_counts, use_container_width=True, hide_index=True)
+    
+    # =========================================================================
+    # AUTO CLEAN
+    # =========================================================================
+    elif cleaning_action == "Auto Clean":
+        render_chart_title("🤖 Automated Data Cleaning", "⚡")
+        
+        st.markdown("##### Select Cleaning Operations")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            auto_remove_dups = st.checkbox("Remove duplicate rows", value=True, key="auto_dups")
+            auto_fill_numeric = st.checkbox("Fill numeric missing with median", value=True, key="auto_numeric")
+            auto_fill_categorical = st.checkbox("Fill categorical missing with mode", value=True, key="auto_cat")
+        
+        with col2:
+            auto_trim_strings = st.checkbox("Trim whitespace from strings", value=True, key="auto_trim")
+            auto_lowercase_cols = st.checkbox("Lowercase column names", value=True, key="auto_lower")
+            auto_remove_empty_cols = st.checkbox("Remove columns with >50% missing", value=False, key="auto_empty")
+        
+        st.markdown("")
+        
+        if st.button("🚀 Run Auto Clean", type="primary", key="run_auto_clean"):
+            with st.spinner("Cleaning data..."):
+                operations = []
+                
+                # Remove duplicates
+                if auto_remove_dups:
+                    original = len(cleaned_df)
+                    cleaned_df = cleaned_df.drop_duplicates()
+                    removed = original - len(cleaned_df)
+                    if removed > 0:
+                        operations.append(f"Removed {removed} duplicate rows")
+                
+                # Fill numeric missing
+                if auto_fill_numeric:
+                    numeric_cols = cleaned_df.select_dtypes(include=[np.number]).columns
+                    for col in numeric_cols:
+                        missing = cleaned_df[col].isnull().sum()
+                        if missing > 0:
+                            cleaned_df[col] = cleaned_df[col].fillna(cleaned_df[col].median())
+                            operations.append(f"Filled {missing} missing values in {col} with median")
+                
+                # Fill categorical missing
+                if auto_fill_categorical:
+                    cat_cols = cleaned_df.select_dtypes(include=['object', 'category']).columns
+                    for col in cat_cols:
+                        missing = cleaned_df[col].isnull().sum()
+                        if missing > 0:
+                            mode_val = cleaned_df[col].mode()
+                            if len(mode_val) > 0:
+                                cleaned_df[col] = cleaned_df[col].fillna(mode_val.iloc[0])
+                                operations.append(f"Filled {missing} missing values in {col} with mode")
+                
+                # Trim whitespace
+                if auto_trim_strings:
+                    string_cols = cleaned_df.select_dtypes(include=['object']).columns
+                    for col in string_cols:
+                        cleaned_df[col] = cleaned_df[col].astype(str).str.strip()
+                    if len(string_cols) > 0:
+                        operations.append(f"Trimmed whitespace from {len(string_cols)} string columns")
+                
+                # Lowercase column names
+                if auto_lowercase_cols:
+                    cleaned_df.columns = cleaned_df.columns.str.lower().str.replace(' ', '_')
+                    operations.append("Lowercased and standardized column names")
+                
+                # Remove empty columns
+                if auto_remove_empty_cols:
+                    empty_threshold = 0.5
+                    cols_to_drop = [col for col in cleaned_df.columns if cleaned_df[col].isnull().mean() > empty_threshold]
+                    if cols_to_drop:
+                        cleaned_df = cleaned_df.drop(columns=cols_to_drop)
+                        operations.append(f"Removed {len(cols_to_drop)} columns with >50% missing: {', '.join(cols_to_drop)}")
+                
+                cleaning_log.extend(operations)
+            
+            # Show results
+            st.success("✅ Auto cleaning complete!")
+            
+            st.markdown("##### Operations Performed")
+            for op in operations:
+                st.markdown(f"• {op}")
+            
+            # Before/After comparison
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("##### Before")
+                st.metric("Rows", f"{len(df):,}")
+                st.metric("Columns", f"{len(df.columns)}")
+                st.metric("Missing", f"{df.isnull().sum().sum():,}")
+            
+            with col2:
+                st.markdown("##### After")
+                st.metric("Rows", f"{len(cleaned_df):,}", delta=f"{len(cleaned_df)-len(df):,}")
+                st.metric("Columns", f"{len(cleaned_df.columns)}", delta=f"{len(cleaned_df.columns)-len(df.columns)}")
+                st.metric("Missing", f"{cleaned_df.isnull().sum().sum():,}", delta=f"{cleaned_df.isnull().sum().sum()-df.isnull().sum().sum():,}")
+    
+    # =========================================================================
+    # CLEANING LOG & EXPORT
+    # =========================================================================
+    render_divider_subtle()
+    
+    if cleaning_log:
+        st.markdown("### 📋 Cleaning Log")
+        for i, log in enumerate(cleaning_log, 1):
+            st.markdown(f"{i}. {log}")
+    
+    # Export option
+    if export_cleaned and len(cleaning_log) > 0:
+        st.markdown("### 📥 Export Cleaned Data")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            csv = cleaned_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Cleaned CSV",
+                data=csv,
+                file_name=f"cleaned_{df_name}_data.csv",
+                mime="text/csv",
+                key="download_cleaned"
+            )
+        
+        with col2:
+            st.info(f"Cleaned dataset: {len(cleaned_df):,} rows × {len(cleaned_df.columns)} columns")
+    
+    # Return cleaned data
+    return cleaned_df, cleaning_log, None, None
+
+# =============================================================================
+# APPLICATION ENTRY POINT
+# =============================================================================
+
+if __name__ == "__main__":
+    main()
+
 
